@@ -22,6 +22,9 @@ function floorTex(o) {
     }
   }
   if (!o.checker) {
+    const rr = srand(o.tw * 7 + 3);
+    for (let v = 0; v < FLOOR_H; v++) { const tws = o.tw * fscale(v); c.globalAlpha = 0.1; for (let k = -14; k < 14; k++) if (k & 1) R(c, vp + k * tws, v, tws + 1, 1, '#000000'); c.globalAlpha = 1; }
+    c.globalAlpha = 0.16; for (let i = 0; i < 900; i++) R(c, rr() * FLOOR_W, 1 + rr() * (FLOOR_H - 1), 2 + rr() * 5, 1, rr() < 0.5 ? '#000000' : '#ffffff'); c.globalAlpha = 1;
     for (let k = -14; k <= 14; k++) stamp(c, vp + k * o.tw * fscale(0), 0, vp + k * o.tw * fscale(FLOOR_H - 1), FLOOR_H - 1, 1, o.line);
     for (const v of [0, 4, 10, 19, 31, 46]) R(c, 0, v, FLOOR_W, 1, o.line);
   }
@@ -36,9 +39,24 @@ function drawFloor(c, tex, cam) {
   }
 }
 
+const FAN_TOP = ['#d83a3a', '#3a6ad8', '#e8c83a', '#3aa86a', '#e8e8f0', '#a84ad8', '#e87a2a', '#2ab8c8'], FAN_SKIN = ['#f0c090', '#c98d62', '#8a5a3a', '#f2c9a0'];
+const FAN_HAIR = ['#2a1a10', '#141414', '#d8b25a', '#7a3e18', '#b8b8c0'], FAN_PANT = ['#2a3a6a', '#3a3a44', '#6a4a2a', '#1a1a24'];
+// a bystander who bobs and throws their arms up
+function fan(c, x, y, i, t) {
+  const up = ((t >> 4) + i * 3) % 4, b = up === 1 || up === 3 ? 1 : 0, top = FAN_TOP[i % 8], td = shade(top, 0.68), sk = FAN_SKIN[i % 4], hr = FAN_HAIR[(i * 3) % 5], pt = FAN_PANT[i % 4], ol = '#12081a';
+  x = Math.round(x); y -= b;
+  R(c, x - 6, y - 20, 13, 21 + b, ol); R(c, x - 5, y - 19, 5, 19 + b, pt); R(c, x + 1, y - 19, 5, 19 + b, pt); R(c, x - 5, y - 2 + b, 5, 2, '#111111'); R(c, x + 1, y - 2 + b, 5, 2, '#111111');
+  R(c, x - 8, y - 39, 17, 21, ol); R(c, x - 7, y - 38, 15, 19, top); R(c, x - 7, y - 38, 4, 19, td); R(c, x - 3, y - 38, 7, 2, sk);
+  const arm = (ax, raised) => { if (raised) { R(c, ax - 1, y - 54, 5, 18, ol); R(c, ax, y - 49, 3, 12, top); R(c, ax, y - 53, 3, 4, sk); } else { R(c, ax - 1, y - 38, 5, 18, ol); R(c, ax, y - 37, 3, 12, td); R(c, ax, y - 25, 3, 4, sk); } };
+  arm(x - 10, up === 1 || up === 2); arm(x + 8, up === 2 || up === 3);
+  R(c, x - 5, y - 52, 11, 14, ol); R(c, x - 4, y - 51, 9, 12, sk); R(c, x - 4, y - 51, 9, 4, hr); R(c, x - 4, y - 47, 2, 4, hr);
+  if (i % 3 === 0) { R(c, x - 5, y - 53, 13, 4, ol); R(c, x - 4, y - 52, 11, 2, top); }
+  R(c, x - 1, y - 45, 2, 2, ol); R(c, x + 3, y - 45, 2, 2, ol); R(c, x, y - 41, 4, up === 2 ? 2 : 1, '#6a2a2a');
+}
 const STAGES = [
   {
-    name: 'STORMFRONT ROOF', mus: { root: 0, spd: 7, bass: [0, null, 0, 0, null, 0, 3, null, 5, null, 5, 5, null, 3, 0, null], lead: [12, null, 15, null, 19, null, 15, 12, null, 10, null, 12, null, null, 7, null] },
+    name: 'STORMFRONT ROOF', crowd: [250, 266, 284, 430, 447], crowdBack: 1, crowdY: 178,
+    fg(c, x) { R(c, x - 13, 204, 26, 20, '#12081a'); R(c, x - 12, 205, 24, 19, '#5a6088'); R(c, x - 12, 205, 24, 3, '#8088b0'); for (let i = -9; i < 10; i += 4) R(c, x + i, 211, 2, 11, '#2c3158'); }, mus: { root: 0, spd: 7, bass: [0, null, 0, 0, null, 0, 3, null, 5, null, 5, 5, null, 3, 0, null], lead: [12, null, 15, null, 19, null, 15, 12, null, 10, null, 12, null, null, 7, null] },
     build() {
       const [far, f] = mkc(448, 180), [mid, m] = mkc(540, 180), r = srand(7);
       skyGrad(f, 448, 180, ['#0a0c24', '#12143a', '#1c1a52', '#2a2068', '#3a2a78']);
@@ -67,13 +85,14 @@ const STAGES = [
     }
   },
   {
-    name: 'DEADEYE RANGE', mus: { root: -2, spd: 8, bass: [0, 0, null, 0, null, null, 7, null, 5, 5, null, 5, null, 3, null, 3], lead: [null, 12, null, 12, 14, null, 15, null, 14, null, 12, null, 10, null, 7, null] },
+    name: 'DEADEYE RANGE', crowd: [112, 128, 214, 231, 248, 318, 334, 424], crowdBack: 1, crowdY: 176,
+    fg(c, x) { R(c, x - 15, 204, 30, 20, '#12081a'); R(c, x - 14, 205, 28, 19, '#5a6a34'); R(c, x - 14, 205, 28, 3, '#7e9048'); R(c, x - 14, 214, 28, 2, '#3c4820'); text(c, 'AMMO', x - 11, 208, '#e8c83a', 1); }, mus: { root: -2, spd: 8, bass: [0, 0, null, 0, null, null, 7, null, 5, 5, null, 5, null, 3, null, 3], lead: [null, 12, null, 12, 14, null, 15, null, 14, null, 12, null, 10, null, 7, null] },
     build() {
       const [far, f] = mkc(448, 180), [mid, m] = mkc(540, 180), r = srand(21);
-      skyGrad(f, 448, 180, ['#3a2a6b', '#6b3270', '#a8405c', '#d9603b', '#f2a343', '#f7d67a']);
-      disc(f, 300, 158, 34, '#fff3b0'); disc(f, 300, 158, 28, '#ffffff');
-      for (let i = 0; i < 6; i++) { const x = i * 84 + r() * 30, w = 50 + r() * 50, h = 22 + r() * 34; R(f, x, 180 - h, w, h, '#5b2e4a'); R(f, x + 6, 180 - h - 6, w - 18, 6, '#5b2e4a'); R(f, x, 180 - h, w, 2, '#7a3c58'); }
-      R(f, 0, 170, 448, 10, '#8a4a4a');
+      skyGrad(f, 448, 180, ['#1e5ad0', '#3a7ae0', '#5a9aee', '#8abcf6', '#c0e0fc']);
+      for (let i = 0; i < 7; i++) { const x = 20 + i * 66 + r() * 20, y = 26 + r() * 60, w = 18 + r() * 16; for (let j = 0; j < 4; j++) disc(f, Math.round(x + j * w * 0.5), Math.round(y - (j === 1 || j === 2 ? 6 : 0)), Math.round(w * 0.42), '#ffffff'); R(f, x - w * 0.4, y + 2, w * 2.3, w * 0.34, '#ffffff'); R(f, x - w * 0.3, y + w * 0.3, w * 2.1, 2, '#c8dcf4'); }
+      for (let i = 0; i < 6; i++) { const x = i * 84 + r() * 30, w = 50 + r() * 50, h = 26 + r() * 40; R(f, x, 180 - h, w, h, '#c86a3a'); R(f, x + 6, 180 - h - 6, w - 18, 6, '#c86a3a'); R(f, x, 180 - h, w, 3, '#eea060'); R(f, x + w - 10, 180 - h + 3, 10, h, '#9a4a2a'); for (let j = 1; j < 4; j++) R(f, x, 180 - h + j * h / 4, w - 10, 1, '#b05a30'); }
+      R(f, 0, 168, 448, 12, '#e0b070'); R(f, 0, 168, 448, 1, '#f4d090');
       // target lane
       for (let i = 0; i < 5; i++) {
         const x = 60 + i * 104; R(m, x - 1, 96, 3, 60, '#5a3a1e'); R(m, x - 14, 94, 29, 3, '#5a3a1e');
@@ -84,18 +103,19 @@ const STAGES = [
       for (let row = 0; row < 3; row++) for (let x = -10 + row * 9; x < 540; x += 22) { const y = 138 + row * 13; R(m, x, y, 21, 12, '#5a3c20'); R(m, x + 1, y + 1, 19, 10, '#c9a46a'); R(m, x + 2, y + 2, 16, 2, '#e0bf86'); R(m, x + 10, y + 1, 1, 10, '#a88450'); }
       R(m, 452, 30, 4, 110, '#3b2a1a'); R(m, 492, 30, 4, 110, '#3b2a1a'); R(m, 444, 56, 60, 30, '#5a3c20'); R(m, 446, 62, 56, 12, '#1c1410'); R(m, 440, 48, 68, 8, '#3b2a1a');
       R(m, 6, 70, 3, 70, '#3b2a1a'); R(m, 0, 76, 44, 22, '#1c1c1c'); R(m, 1, 77, 42, 20, '#f2c230'); text(m, 'RANGE', 22, 79, '#1c1c1c', 1, 1); text(m, 'HOT', 22, 88, '#d02a2a', 1, 1);
-      return { far, mid, floor: floorTex({ c0: '#c9975a', c1: '#9a6a3c', line: '#84572f', edge: '#e6c07e', tw: 60 }) };
+      return { far, mid, floor: floorTex({ c0: '#d8a868', c1: '#a87444', line: '#7a5028', edge: '#f4d090', tw: 60 }) };
     },
     anim(c, cam, t) {
       const fx = 474 - cam * 0.6, w = (t >> 3) % 3;
       R(c, fx, 6, 2, 26, '#3b2a1a'); R(c, fx + 2, 7 + w, 9, 7, '#d02a2a'); R(c, fx + 11, 8 + ((w + 1) % 3), 7, 6, '#d02a2a');
-      c.fillStyle = '#f7d67a'; c.globalAlpha = 0.5;
+      c.fillStyle = '#fff4d0'; c.globalAlpha = 0.6;
       for (let i = 0; i < 16; i++) c.fillRect((i * 71 + t * 0.7 + cam * 0.4) % W, 120 + (i * 29 + Math.floor(t / 6)) % 70, 1, 1);
       c.globalAlpha = 1;
     }
   },
   {
-    name: 'TWIN LANTERN DOJO', mus: { root: 3, spd: 6, bass: [0, null, 7, null, 0, null, 7, 5, 3, null, 7, null, 3, null, 5, 7], lead: [12, 14, null, 12, 14, null, 19, null, 17, 14, null, 17, 14, null, 12, null] },
+    name: 'TWIN LANTERN DOJO', crowd: [102, 120, 252, 270, 288, 432, 452], crowdY: 179,
+    fg(c, x) { R(c, x - 9, 198, 18, 26, '#12081a'); R(c, x - 8, 199, 16, 5, '#8a8a98'); R(c, x - 6, 204, 12, 9, '#6a6a78'); R(c, x - 3, 206, 6, 5, '#ffcf6a'); R(c, x - 8, 213, 16, 4, '#8a8a98'); R(c, x - 5, 217, 10, 7, '#6a6a78'); R(c, x - 8, 199, 16, 1, '#b8b8c8'); }, mus: { root: 3, spd: 6, bass: [0, null, 7, null, 0, null, 7, 5, 3, null, 7, null, 3, null, 5, 7], lead: [12, 14, null, 12, 14, null, 19, null, 17, 14, null, 17, 14, null, 12, null] },
     build() {
       const [far, f] = mkc(448, 180), [mid, m] = mkc(540, 180), r = srand(4);
       skyGrad(f, 448, 180, ['#1d2b53', '#3b3f7a', '#7e4b8a', '#d2738a', '#f5b08a']);
@@ -119,7 +139,8 @@ const STAGES = [
     }
   },
   {
-    name: 'MIDNIGHT DONUTS', mus: { root: -4, spd: 8, bass: [0, null, null, 0, 3, null, 0, null, 5, null, null, 5, 7, null, 5, null], lead: [null, null, 12, null, 15, 12, null, 10, null, null, 7, null, 10, 12, null, null] },
+    name: 'MIDNIGHT DONUTS', crowd: [132, 148, 420, 438, 502], crowdY: 179,
+    fg(c, x) { R(c, x - 10, 219, 20, 5, '#12081a'); R(c, x - 9, 220, 18, 4, '#e86a1a'); for (let i = 0; i < 16; i++) { const w = 3 + i * 0.6; R(c, x - w - 1, 203 + i, w * 2 + 2, 1, '#12081a'); R(c, x - w, 203 + i, w * 2, 1, i > 4 && i < 8 ? '#ffffff' : '#ff8a2a'); } }, mus: { root: -4, spd: 8, bass: [0, null, null, 0, 3, null, 0, null, 5, null, null, 5, 7, null, 5, null], lead: [null, null, 12, null, 15, 12, null, 10, null, null, 7, null, 10, 12, null, null] },
     build() {
       const [far, f] = mkc(448, 180), [mid, m] = mkc(540, 180), r = srand(12);
       skyGrad(f, 448, 180, ['#070a1c', '#0d1230', '#141b44', '#1d2550']);
@@ -147,7 +168,8 @@ const STAGES = [
     }
   },
   {
-    name: 'QUARTER PALACE', mus: { root: 2, spd: 6, bass: [0, 0, 12, 0, 0, 12, 0, 10, 3, 3, 15, 3, 5, 5, 17, 7], lead: [12, null, 12, 15, null, 12, 17, null, 15, null, 12, null, 10, 12, null, 19] },
+    name: 'QUARTER PALACE', crowd: [30, 122, 140, 300, 318, 470, 502], crowdY: 179,
+    fg(c, x) { R(c, x - 11, 202, 22, 7, '#12081a'); R(c, x - 10, 203, 20, 5, '#d81a4a'); R(c, x - 10, 203, 20, 1, '#ff6a8a'); R(c, x - 2, 209, 4, 12, '#8a8a98'); R(c, x - 9, 220, 18, 4, '#12081a'); R(c, x - 8, 221, 16, 2, '#8a8a98'); }, mus: { root: 2, spd: 6, bass: [0, 0, 12, 0, 0, 12, 0, 10, 3, 3, 15, 3, 5, 5, 17, 7], lead: [12, null, 12, 15, null, 12, 17, null, 15, null, 12, null, 10, 12, null, 19] },
     build() {
       const [far, f] = mkc(448, 180), [mid, m] = mkc(540, 180), r = srand(31);
       R(f, 0, 0, 448, 180, '#1a0f33'); R(f, 0, 0, 448, 14, '#0c0718');
@@ -178,9 +200,14 @@ const STAGES = [
   }
 ];
 function buildStages() { for (const s of STAGES) Object.assign(s, s.build()); }
+function drawCrowd(c, st, cam, t) { st.crowd.forEach((x, i) => { const sx = x - cam * 0.6; if (sx > -14 && sx < W + 14) fan(c, sx, st.crowdY, i + st.name.length, t); }); }
 function drawStage(c, st, cam, t) {
   c.drawImage(st.far, -Math.round(cam * 0.25), 0);
+  if (st.crowdBack) drawCrowd(c, st, cam, t);
   c.drawImage(st.mid, -Math.round(cam * 0.6), 0);
+  if (!st.crowdBack) drawCrowd(c, st, cam, t);
   drawFloor(c, st.floor, cam);
   st.anim(c, cam, t);
 }
+// props that sit in front of the fighters at the bottom edge of the screen
+function drawStageFront(c, st, cam) { for (const wx of [248, 392]) st.fg(c, Math.round(W / 2 + (wx - STAGE_W / 2 - (cam - CAM_MAX / 2)) * 1.23)); }

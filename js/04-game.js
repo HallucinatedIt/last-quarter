@@ -14,7 +14,7 @@ function mkPortrait(ch, pal, alt) {
   const [c, x] = mkc(48, 48);
   R(x, 0, 0, 48, 48, alt ? '#123048' : '#3a1630');
   for (let i = 0; i < 48; i += 6) R(x, 0, i, 48, 2, alt ? '#18405c' : '#4a1c3c');
-  x.save(); x.scale(3, 3); drawRig(x, 6, 73, 1, ch.poses.idle, ch, pal, 0, false); x.restore();
+  x.save(); x.scale(2, 2); drawRig(x, 9, 94, 1, ch.poses.idle, ch, pal, 0, false); x.restore();
   return c;
 }
 
@@ -25,7 +25,7 @@ function newFighter(idx, ci, alt, cpu) {
 }
 function resetFighter(f) {
   Object.assign(f, {
-    x: STAGE_W / 2 + (f.idx ? 70 : -70), y: 0, vx: 0, vy: 0, kb: 0, face: f.idx ? -1 : 1, state: 'wait', st: 0, hp: f.ch.hp, hpShow: f.ch.hp,
+    x: STAGE_W / 2 + (f.idx ? 84 : -84), y: 0, vx: 0, vy: 0, kb: 0, face: f.idx ? -1 : 1, state: 'wait', st: 0, hp: f.ch.hp, hpShow: f.ch.hp,
     move: null, mf: 0, hitDone: [], hitAt: [], connected: false, combo: 0, juggle: 0, buf: { b: 0, f: -99 }, hist: [], charge: 0, chargeReady: 0,
     pose: f.ch.poses.idle, flash: 0, shock: 0, crouch: false, prev: 0, dir: 5, trail: [], inv: 0, projInv: 0, ghost: false, wt: 0, glow: 0, muz: 0, snap: 0, hitPose: 'hit1', jdir: 0
   });
@@ -127,7 +127,7 @@ function updFighter(f, o) {
         f.pose = f.vx ? [ps.w1, ps.w2, ps.w3, ps.w4][(((f.wt >> 3) % 4) + 4) % 4] : ((G.rt >> 4) & 1 ? ps.idle2 : ps.idle);
       }
       break;
-    case 'pre': f.pose = ps.pre; if (++f.st >= 4) { f.vy = f.ch.jump; f.vx = f.jdir * f.face * 2.3; f.y = 0.01; f.state = 'air'; sfx('jump'); } break;
+    case 'pre': f.pose = ps.pre; if (++f.st >= 4) { f.vy = f.ch.jump; f.vx = f.jdir * f.face * 2.6; f.y = 0.01; f.state = 'air'; sfx('jump'); } break;
     case 'air': f.pose = f.vy > -1 ? ps.jump : ps.fall; tryAttack(f, o, true); break;
     case 'atk': runMove(f, o); break;
     case 'hit': f.vx = 0; f.pose = f.crouch ? ps.hitC : ps[f.hitPose]; if (--f.st <= 0) { f.state = 'idle'; f.combo = 0; } break;
@@ -154,7 +154,7 @@ function physics(f) {
 function bounds(f) { f.x = clamp(f.x, Math.max(14, G.camT + 12), Math.min(STAGE_W - 14, G.camT + W - 12)); }
 function pushApart(a, b) {
   if (a.ghost || b.ghost || a.state === 'down' || b.state === 'down' || Math.abs(a.y - b.y) > 50) return;
-  const dx = b.x - a.x, ov = 24 - Math.abs(dx); if (ov <= 0) return;
+  const dx = b.x - a.x, ov = 30 - Math.abs(dx); if (ov <= 0) return;
   const s = dx > 0 ? 1 : dx < 0 ? -1 : (a.idx ? -1 : 1);
   a.x -= s * ov / 2; b.x += s * ov / 2;
   const lo = Math.max(14, G.camT + 12), hi = Math.min(STAGE_W - 14, G.camT + W - 12);
@@ -164,7 +164,7 @@ function pushApart(a, b) {
 const isLow = f => f.state === 'atk' ? !!(f.move && f.move.low) : (f.crouch && (f.state === 'idle' || f.state === 'block' || f.state === 'hit' || f.state === 'rec'));
 function hurt(d) {
   if (d.inv > 0 || d.hp <= 0 || d.state === 'down' || d.state === 'getup' || d.state === 'trapped' || d.state === 'win' || d.state === 'wait' || (d.state === 'airhit' && d.juggle >= 3)) return null;
-  return [d.x - 11, d.y, 22, isLow(d) ? 46 : 68];
+  return [d.x - 13, d.y, 26, isLow(d) ? 56 : 84];
 }
 function checkHits(a, d) {
   if (a.state !== 'atk' || !a.move || !a.move.hits) return;
@@ -176,7 +176,7 @@ function checkHits(a, d) {
     if (bx < hb[0] + hb[2] && bx + h.box[2] > hb[0] && by < hb[1] + hb[3] && by + h.box[3] > hb[1]) {
       a.hitDone[i] = 1; a.hitAt[i] = G.ft; a.connected = true;
       const py = clamp(by + h.box[3] / 2, hb[1] + 6, hb[1] + hb[3] - 4);
-      resolveHit(a, d, h, d.x - a.face * 8, py, null);
+      resolveHit(a, d, h, d.x - a.face * 10, py, null);
     }
   }
 }
@@ -214,7 +214,7 @@ function resolveHit(a, d, h, px, py, proj) {
     d.juggle = d.state === 'airhit' ? d.juggle + 1 : 1; d.state = 'airhit';
     d.vx = dirn * L[0]; d.vy = L[1] * (d.juggle > 1 ? 0.85 : 1); if (d.y <= 0) d.y = 0.01;
   } else {
-    d.state = 'hit'; d.st = h.hs; d.hitPose = (py - d.y < 30 && !d.crouch) ? 'hit2' : 'hit1'; pushback(a, d, dirn, h.pu, proj);
+    d.state = 'hit'; d.st = h.hs; d.hitPose = (py - d.y < 38 && !d.crouch) ? 'hit2' : 'hit1'; pushback(a, d, dirn, h.pu, proj);
   }
   G.hitstop = h.stop || 6; if ((h.stop || 6) >= 8) G.shake = 5;
   G.flashes.push({ x: px, y: sy, t: 7, k: h.el ? 2 : 1 });
@@ -278,19 +278,19 @@ function startTrap(a, d) {
   a.face = d.x >= a.x ? 1 : -1; a.y = 0; a.vy = 0;
   a.state = 'atk'; a.move = a.ch.finish; a.mf = 0; a.hitDone = []; a.connected = false; a.crouch = false;
   G.trap = { a, d }; G.hitstop = 10; G.shake = 5; sfx('crunch');
-  burst(d.x, GROUND - 46, 12, ['#ff7ac0', '#fff', '#d99a4e'], 3, 0.1);
+  burst(d.x, GROUND - 56, 12, ['#ff7ac0', '#fff', '#d99a4e'], 3, 0.1);
 }
 function finHit(a, d, base, last) {
   d.combo++;
   const dmg = base * Math.max(0.5, 1 - (d.combo - 1) * 0.06);
   d.hp -= dmg; if (!last && d.hp < 1) d.hp = 1;
   d.flash = 3; d.snap = 9; G.hitstop = last ? 14 : 6; G.shake = last ? 9 : 4;
-  const px = d.x - a.face * 5, sy = GROUND - 64;
+  const px = d.x - a.face * 6, sy = GROUND - 80;
   G.flashes.push({ x: px, y: sy, t: 7, k: 1 }); burst(px, sy, last ? 14 : 6, ['#fff', '#ffc93a', '#ff7a3a'], 3, 0.1);
   sfx('hitH'); if (d.combo >= 2) G.combo[a.idx] = { n: d.combo, t: 80 };
   if (last) {
     G.trap = null; sfx('crunch');
-    for (let i = 0; i < 34; i++) part(d.x + rnd(-24, 24), GROUND - 46 + rnd(-8, 8), rnd(-3.5, 3.5), rnd(-5, -1), ri(20, 40), ['#ff7ac0', '#d99a4e', '#fff', '#6ee7ff', '#ffe94a'][ri(0, 4)], ri(2, 3), 0.25);
+    for (let i = 0; i < 34; i++) part(d.x + rnd(-30, 30), GROUND - 56 + rnd(-10, 10), rnd(-3.5, 3.5), rnd(-5, -1), ri(20, 40), ['#ff7ac0', '#d99a4e', '#fff', '#6ee7ff', '#ffe94a'][ri(0, 4)], ri(2, 3), 0.25);
     d.state = 'airhit'; d.juggle = 9; d.vx = a.face * 4.2; d.vy = 6.6; d.y = 0.01;
     if (d.hp <= 0) { d.hp = 0; G.donutKO = true; ko(); }
   }
@@ -305,7 +305,7 @@ function aiThink(f, o) {
     return 0;
   }
   ai.canc = false;
-  if (f.state === 'air') { if (f.vy < 1 && dist < 76 && !ai.airDone && Math.random() < 0.4) { ai.airDone = true; return Math.random() < 0.5 ? B.HK : B.HP; } return ai.hold; }
+  if (f.state === 'air') { if (f.vy < 1 && dist < 92 && !ai.airDone && Math.random() < 0.4) { ai.airDone = true; return Math.random() < 0.5 ? B.HK : B.HP; } return ai.hold; }
   if (f.state !== 'idle') { ai.hold = 0; return 0; }
   ai.airDone = false; ai.hold = 0;
   if (--ai.t <= 0) {
@@ -313,11 +313,11 @@ function aiThink(f, o) {
     const threat = G.projs.find(p => p.owner !== f && p.type !== 'bolt' && Math.abs(p.x - f.x) < 110 && sgn(p.vx) === sgn(f.x - p.x));
     if (threat) ai.plan = r < 0.55 ? 'block' : r < 0.8 ? 'jump' : 'fwd';
     else if (f.meter >= 100 && dist >= A.supD[0] && dist <= A.supD[1] && o.y <= 0 && o.state !== 'down' && r < 0.4) ai.plan = 'super';
-    else if (o.y > 18 && dist < 90) ai.plan = r < 0.5 ? 'anti' : 'block';
-    else if (o.state === 'atk' && dist < 90) ai.plan = r < 0.6 ? 'block' : 'attack';
-    else if (o.state === 'down' || o.state === 'getup') ai.plan = dist > 80 ? 'fwd' : 'idle';
-    else if (dist > 190) ai.plan = r < 0.4 ? 'fwd' : r < 0.8 ? 'zone' : r < 0.92 ? 'jumpf' : 'idle';
-    else if (dist > 80) ai.plan = r < 0.34 ? 'fwd' : r < 0.54 ? 'zone' : r < 0.66 ? 'jumpf' : r < 0.76 ? 'back' : r < 0.9 ? 'rush' : 'idle';
+    else if (o.y > 18 && dist < 108) ai.plan = r < 0.5 ? 'anti' : 'block';
+    else if (o.state === 'atk' && dist < 108) ai.plan = r < 0.6 ? 'block' : 'attack';
+    else if (o.state === 'down' || o.state === 'getup') ai.plan = dist > 96 ? 'fwd' : 'idle';
+    else if (dist > 200) ai.plan = r < 0.4 ? 'fwd' : r < 0.8 ? 'zone' : r < 0.92 ? 'jumpf' : 'idle';
+    else if (dist > 96) ai.plan = r < 0.34 ? 'fwd' : r < 0.54 ? 'zone' : r < 0.66 ? 'jumpf' : r < 0.76 ? 'back' : r < 0.9 ? 'rush' : 'idle';
     else ai.plan = r < 0.5 ? 'attack' : r < 0.68 ? 'low' : r < 0.78 ? 'back' : r < 0.88 ? 'rush' : 'block';
     ai.t = ri(8, 22);
   }
@@ -326,8 +326,8 @@ function aiThink(f, o) {
     case 'back': case 'block': return bk;
     case 'jump': ai.plan = 'idle'; return B.U;
     case 'jumpf': ai.plan = 'idle'; ai.hold = fw; return B.U | fw;
-    case 'attack': if (dist > 64) return fw; ai.plan = 'idle'; ai.t = ri(6, 16); return pick([B.LP, B.MP, B.HP, B.LK, B.MK, B.HK]);
-    case 'low': if (dist > 64) return fw; ai.plan = 'idle'; ai.t = ri(6, 16); return B.D | pick([B.LK, B.MK, B.HK]);
+    case 'attack': if (dist > 78) return fw; ai.plan = 'idle'; ai.t = ri(6, 16); return pick([B.LP, B.MP, B.HP, B.LK, B.MK, B.HK]);
+    case 'low': if (dist > 78) return fw; ai.plan = 'idle'; ai.t = ri(6, 16); return B.D | pick([B.LK, B.MK, B.HK]);
     case 'zone': return spec(pick(A.zone));
     case 'rush': return spec(A.rush);
     case 'anti': return spec(A.anti);
@@ -380,7 +380,7 @@ function fightUpdate(inp) {
 
 // ---------- drawing ----------
 function drawFighter(f, cam) {
-  const sx = Math.round(f.x - cam), gy = GROUND - Math.round(f.y), sw = Math.max(8, 14 - f.y / 8);
+  const sx = Math.round(f.x - cam), gy = GROUND - Math.round(f.y), sw = Math.max(10, 19 - f.y / 7);
   ctx.globalAlpha = 0.35; R(ctx, sx - sw, GROUND, sw * 2, 3, '#000'); R(ctx, sx - sw + 3, GROUND - 1, sw * 2 - 6, 5, '#000'); ctx.globalAlpha = 1;
   for (const tr of f.trail) { ctx.globalAlpha = tr.t / 18; drawRig(ctx, Math.round(tr.x - cam), GROUND - Math.round(tr.y), tr.face, tr.pose, f.ch, PAL_G, 0, false); }
   ctx.globalAlpha = 1;
@@ -396,12 +396,12 @@ function drawFighter(f, cam) {
   if (f.state === 'atk' && f.move) {
     const mv = f.move, mf = f.mf - 1;
     if (mv.beam && mf >= mv.beam[0] && mf < mv.beam[1]) {
-      const x0 = sx + f.face * 30, x1 = f.face > 0 ? W + 8 : -8, y = GROUND - 46, lx = Math.min(x0, x1), len = Math.abs(x1 - x0), th = 5 + (G.rt & 3);
+      const x0 = sx + f.face * 38, x1 = f.face > 0 ? W + 8 : -8, y = GROUND - 58, lx = Math.min(x0, x1), len = Math.abs(x1 - x0), th = 5 + (G.rt & 3);
       R(ctx, lx, y - th, len, th * 2, '#fff36a'); R(ctx, lx, y - th + 3, len, th * 2 - 6, '#fff');
       for (let i = 0; i < 4; i++) jag(ctx, x0, y + ri(-6, 6), x1, y + ri(-14, 14), i % 2 ? '#6ee7ff' : '#fff36a', 10, 1);
     } else if (mv.hits) for (const h of mv.hits) if (h.el && mf >= h.f0 - 1 && mf <= h.f1 + 2) {
       const bx = sx + f.face * (h.box[0] + h.box[2]), by = gy - h.box[1] - h.box[3] / 2;
-      jag(ctx, sx + f.face * 8, by + ri(-4, 4), bx, by + ri(-6, 6), '#fff36a', 5, 2); jag(ctx, sx + f.face * 8, by, bx, by + ri(-6, 6), '#fff', 4, 1);
+      jag(ctx, sx + f.face * 10, by + ri(-4, 4), bx, by + ri(-6, 6), '#fff36a', 5, 2); jag(ctx, sx + f.face * 10, by, bx, by + ri(-6, 6), '#fff', 4, 1);
     }
   }
 }
@@ -409,11 +409,11 @@ function drawProj(p, cam) {
   const x = Math.round(p.x - cam), y = GROUND - Math.round(p.y);
   if (p.type === 'bullet') {
     const n = Math.hypot(p.vx, p.vy) || 1, ux = p.vx / n, uy = -p.vy / n;
-    stamp(ctx, x - ux * 12, y - uy * 12, x - ux * 3, y - uy * 3, 1, '#ffb020'); stamp(ctx, x - ux * 3, y - uy * 3, x + ux * 3, y + uy * 3, 2, '#fff7c0');
+    stamp(ctx, x - ux * 16, y - uy * 16, x - ux * 4, y - uy * 4, 1, '#ffb020'); stamp(ctx, x - ux * 5, y - uy * 5, x + ux * 4, y + uy * 4, 3, '#12081a'); stamp(ctx, x - ux * 4, y - uy * 4, x + ux * 3, y + uy * 3, 2, '#fff7c0');
   } else if (p.type === 'volt') {
-    disc(ctx, x, y, 7, (p.t & 2) ? '#fff36a' : '#ffd020'); disc(ctx, x, y, 3, '#fff');
+    disc(ctx, x, y, 10, '#12081a'); disc(ctx, x, y, 9, (p.t & 2) ? '#fff36a' : '#ffd020'); disc(ctx, x, y, 5, '#fff');
     jag(ctx, x, y, x + ri(-12, 12), y + ri(-12, 12), '#fff', 3, 1); jag(ctx, x, y, x + ri(-12, 12), y + ri(-12, 12), '#6ee7ff', 3, 1);
-  } else if (p.type === 'donut') drawDonut(ctx, x, y, 10, p.t * 0.45);
+  } else if (p.type === 'donut') drawDonut(ctx, x, y, 12, p.t * 0.45);
   else if (p.type === 'bolt') {
     if (p.delay > 0) { if (p.t & 2) { R(ctx, x - 11, GROUND - 1, 22, 2, '#fff36a'); R(ctx, x, 0, 1, GROUND, 'rgba(255,243,106,0.35)'); } }
     else if (p.life > 16) {
@@ -432,24 +432,30 @@ function bigText(s, y, sc, c0) {
   text(ctx, s, 192 + sc, y + sc, '#12061e', sc, 1); text(ctx, s, 192, y, grad, sc, 1);
 }
 function drawHud() {
-  const a = G.f[0], b = G.f[1], bw = 152;
+  const bw = 156, ol = '#12081a';
+  let danger = false;
   for (const f of G.f) {
-    const x = f.idx ? 216 : 16, hw = Math.round(bw * Math.max(0, f.hp) / f.ch.hp), sw = Math.round(bw * Math.max(0, f.hpShow) / f.ch.hp);
-    R(ctx, x - 2, 12, bw + 4, 13, '#12061e'); R(ctx, x - 1, 13, bw + 2, 11, '#fff'); R(ctx, x, 14, bw, 9, '#6a0c1c');
+    const x = f.idx ? 212 : 16, hw = Math.round(bw * Math.max(0, f.hp) / f.ch.hp), sw = Math.round(bw * Math.max(0, f.hpShow) / f.ch.hp);
+    if (f.hp < f.ch.hp * 0.25) danger = true;
+    R(ctx, x - 2, 12, bw + 4, 14, ol); R(ctx, x - 1, 13, bw + 2, 12, '#ffffff'); R(ctx, x, 14, bw, 10, '#d01818');
     const hx = f.idx ? x : x + bw - hw, sx2 = f.idx ? x : x + bw - sw;
-    R(ctx, sx2, 14, sw, 9, '#ff5a3a'); R(ctx, hx, 14, hw, 9, hw < bw * 0.25 && (G.rt & 8) ? '#ff9a2a' : '#ffd92a'); R(ctx, hx, 14, hw, 3, '#fff7a0');
-    text(ctx, f.ch.name + (f.cpu && G.mode !== 'demo' ? ' (CPU)' : ''), f.idx ? 368 : 16, 27, '#fff', 1, f.idx ? 2 : 0, '#12061e');
-    for (let i = 0; i < 2; i++) { const wx = f.idx ? 216 + i * 10 : 161 - i * 10; R(ctx, wx, 36, 8, 8, '#12061e'); R(ctx, wx + 1, 37, 6, 6, f.wins > i ? '#ffd92a' : '#3a2a4a'); }
+    R(ctx, sx2, 14, sw, 10, '#ff8a2a'); R(ctx, hx, 14, hw, 10, '#ffe000'); R(ctx, hx, 14, hw, 2, '#fff8a8'); R(ctx, hx, 22, hw, 2, '#d8a400');
+    text(ctx, f.ch.name, f.idx ? 368 : 16, 29, '#ffb020', 1, f.idx ? 2 : 0, ol);
+    if (f.cpu && G.mode !== 'demo') text(ctx, 'CPU', f.idx ? 368 - tw(f.ch.name) - 8 : 24 + tw(f.ch.name), 29, '#ffffff', 1, f.idx ? 2 : 0, ol);
+    for (let i = 0; i < 2; i++) { const wx = f.idx ? 216 + i * 11 : 159 - i * 11; if (f.wins > i) { R(ctx, wx, 28, 9, 9, ol); R(ctx, wx + 1, 29, 7, 7, '#ffe000'); R(ctx, wx + 3, 31, 3, 3, '#d01818'); } }
     const mx = f.idx ? 288 : 16, mw = Math.round(80 * f.meter / 100), full = f.meter >= 100;
-    R(ctx, mx - 1, 211, 82, 7, '#12061e'); R(ctx, mx, 212, 80, 5, '#1a2a4a');
-    R(ctx, f.idx ? mx + 80 - mw : mx, 212, mw, 5, full ? ((G.rt & 4) ? '#fff' : '#ffd92a') : '#2fd6e8');
-    if (full) text(ctx, 'SUPER', f.idx ? 368 : 16, 202, (G.rt & 8) ? '#ffd92a' : '#fff', 1, f.idx ? 2 : 0, '#12061e');
+    R(ctx, mx - 2, 210, 84, 9, ol); R(ctx, mx - 1, 211, 82, 7, '#ffffff'); R(ctx, mx, 212, 80, 5, '#1a2a5a');
+    R(ctx, f.idx ? mx + 80 - mw : mx, 212, mw, 5, full ? ((G.rt & 4) ? '#ffffff' : '#ffe000') : '#2fd6e8');
+    if (full) text(ctx, 'SUPER', f.idx ? 368 : 16, 200, (G.rt & 8) ? '#ffe000' : '#ffffff', 1, f.idx ? 2 : 0, ol);
     const c = G.combo[f.idx];
-    if (c) { text(ctx, c.n + ' HITS', f.idx ? 368 : 16, 50, '#ffe94a', 2, f.idx ? 2 : 0, '#a01040'); }
+    if (c) text(ctx, c.n + ' HITS', f.idx ? 368 : 16, 56, '#ffe000', 2, f.idx ? 2 : 0, '#c0104a');
   }
-  R(ctx, 178, 9, 28, 20, '#12061e'); R(ctx, 179, 10, 26, 18, '#2a1a3a');
-  text(ctx, String(G.timer).padStart(2, '0'), 193, 12, G.timer <= 10 && (G.rt & 8) ? '#ff3d3d' : '#ffe94a', 2, 1);
-  text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 214, '#fff', 1, 1, '#12061e');
+  R(ctx, 172, 9, 40, 20, ol); R(ctx, 173, 10, 38, 18, '#ffffff'); R(ctx, 175, 12, 34, 14, danger && (G.rt & 8) ? '#ffe000' : '#d01818');
+  text(ctx, 'KO', 193, 13, ol, 2, 1); text(ctx, 'KO', 192, 12, '#ffffff', 2, 1);
+  const ts = String(G.timer).padStart(2, '0'), tc = G.timer <= 10 && (G.rt & 8) ? '#ff3d3d' : '#ffb020';
+  for (const o of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) text(ctx, ts, 193 + o[0], 33 + o[1], ol, 2, 1);
+  text(ctx, ts, 193, 33, r => r < 3 ? '#ffe000' : tc, 2, 1);
+  text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 213, '#ffffff', 1, 1, ol);
 }
 function drawFight() {
   const st = STAGES[G.stage], shx = G.shake > 0 ? ri(-2, 2) : 0, shy = G.shake > 0 ? ri(-2, 2) : 0, cam = Math.round(G.cam) + shx;
@@ -461,9 +467,10 @@ function drawFight() {
   }
   for (const p of G.projs) if (p.type === 'bolt') drawProj(p, cam);
   const order = G.f[0].state === 'atk' && G.f[1].state !== 'atk' ? [G.f[1], G.f[0]] : [G.f[0], G.f[1]];
-  if (G.trap) drawTrapDonut(ctx, Math.round(G.trap.d.x - cam), GROUND - 46, 0);
-  for (const f of order) { drawFighter(f, cam); if (G.trap && G.trap.d === f) drawTrapDonut(ctx, Math.round(f.x - cam), GROUND - 46, 1); }
+  if (G.trap) drawTrapDonut(ctx, Math.round(G.trap.d.x - cam), GROUND - 58, 0);
+  for (const f of order) { drawFighter(f, cam); if (G.trap && G.trap.d === f) drawTrapDonut(ctx, Math.round(f.x - cam), GROUND - 58, 1); }
   for (const p of G.projs) if (p.type !== 'bolt') drawProj(p, cam);
+  drawStageFront(ctx, st, clamp(cam, 0, CAM_MAX));
   for (const p of G.parts) R(ctx, p.x - cam, p.y, p.sz, p.sz, p.col);
   for (const fl of G.flashes) drawFlash(fl, cam);
   ctx.restore();
@@ -480,7 +487,7 @@ function drawFight() {
     }
   }
   if (G.mode === 'demo') {
-    text(ctx, 'DEMO', 192, 37, '#fff', 1, 1, '#12061e');
+    text(ctx, 'DEMO', 192, 54, '#fff', 1, 1, '#12061e');
     if ((G.rt >> 5) & 1) text(ctx, 'INSERT COIN', 192, 186, '#ffe94a', 2, 1, '#12061e');
   }
 }
@@ -515,7 +522,7 @@ const SCENES = {
       text(ctx, 'QUARTER', 196, 68, '#12061e', 5, 1); text(ctx, 'QUARTER', 192, 64, grad, 5, 1);
       R(ctx, 86, 104, 212, 2, P1C); R(ctx, 86, 108, 212, 1, P2C);
       text(ctx, 'TWO PLAYER VERSUS FIGHTING', 192, 115, '#fff', 1, 1, '#12061e');
-      CHARS.forEach((ch, i) => drawBigRig(ch, ch.pal, [30, 74, 310, 354][i], 206, i < 2 ? 1 : -1, (G.t >> 4) & 1 ? ch.poses.idle2 : ch.poses.idle, 1));
+      CHARS.forEach((ch, i) => drawBigRig(ch, ch.pal, [28, 82, 302, 356][i], 212, i < 2 ? 1 : -1, (G.t >> 4) & 1 ? ch.poses.idle2 : ch.poses.idle, 1));
       if (G.credits > 0) {
         if ((G.t >> 4) & 1) text(ctx, 'PRESS START', 192, 134, '#ffe94a', 2, 1, '#12061e');
         text(ctx, '1P START - VS CPU', 192, 158, P1C, 1, 1, '#12061e'); text(ctx, '2P START - VS PLAYER', 192, 170, P2C, 1, 1, '#12061e');
@@ -524,7 +531,7 @@ const SCENES = {
         text(ctx, 'COIN = 5 KEY    START = 1 KEY', 192, 164, '#fff', 1, 1, '#12061e');
       }
       text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 214, '#fff', 1, 1, '#12061e');
-      text(ctx, 'BUILD 0.1', 192, 200, '#9a8fb8', 1, 1);
+      text(ctx, 'BUILD 0.2', 192, 200, '#9a8fb8', 1, 1);
     }
   },
   select: {
@@ -548,11 +555,14 @@ const SCENES = {
     },
     draw() {
       gridBg('#120a26', '#1e1240');
-      text(ctx, 'PLAYER SELECT', 192, 6, '#ffd92a', 2, 1, '#a01040');
-      if (!(G.sel[0].ok && G.sel[1].ok)) text(ctx, String(Math.max(0, 20 - Math.floor(G.t / 60))).padStart(2, '0'), 192, 26, '#fff', 1, 1);
+      text(ctx, 'PLAYER SELECT', 192, 8, '#ffd92a', 1, 1, '#a01040');
+      if (!(G.sel[0].ok && G.sel[1].ok)) text(ctx, String(Math.max(0, 20 - Math.floor(G.t / 60))).padStart(2, '0'), 192, 20, '#fff', 1, 1);
       for (let p = 0; p < 2; p++) {
         const s = G.sel[p], ch = CHARS[s.i], alt = p === 1 && s.i === G.sel[0].i;
-        drawBigRig(ch, alt ? ch.pal2 : ch.pal, p ? 346 : 38, 188, p ? -1 : 1, s.ok ? ch.poses.win : ((G.t >> 4) & 1 ? ch.poses.idle2 : ch.poses.idle), 2);
+        ctx.save(); ctx.beginPath(); ctx.rect(p ? 300 : 0, 30, 84, 194); ctx.clip();
+        R(ctx, p ? 300 : 0, 30, 84, 194, p ? '#0c2434' : '#2a0c20');
+        drawBigRig(ch, alt ? ch.pal2 : ch.pal, p ? 350 : 34, 222, p ? -1 : 1, s.ok ? ch.poses.win : ((G.t >> 4) & 1 ? ch.poses.idle2 : ch.poses.idle), 2);
+        ctx.restore(); R(ctx, p ? 299 : 84, 30, 1, 194, p ? P2C : P1C);
       }
       for (let i = 0; i < 4; i++) {
         const x = 88 + i * 52, y = 44;
@@ -563,11 +573,11 @@ const SCENES = {
         const s = G.sel[p], ch = CHARS[s.i], col = p ? P2C : P1C, x = 88 + s.i * 52, y = 44, in2 = p ? 3 : 0, alt = p === 1 && s.i === G.sel[0].i;
         if (s.ok || (G.t & 4)) { R(ctx, x + in2, y + in2, 52 - in2 * 2, 2, col); R(ctx, x + in2, y + 50 - in2, 52 - in2 * 2, 2, col); R(ctx, x + in2, y + in2, 2, 52 - in2 * 2, col); R(ctx, x + 50 - in2, y + in2, 2, 52 - in2 * 2, col); }
         text(ctx, p ? (G.mode === 'cpu' ? 'CPU' : '2P') : '1P', x + (p ? 40 : 12), y - 9, col, 1, 1, '#05030f');
-        text(ctx, ch.name, p ? W - 8 : 8, 22, col, 2, p ? 2 : 0, '#05030f');
-        text(ctx, ch.title, p ? W - 8 : 8, 38, '#fff', 1, p ? 2 : 0, '#05030f');
+        text(ctx, ch.name, p ? W - 6 : 6, 6, col, 2, p ? 2 : 0, '#05030f');
+        text(ctx, ch.title, p ? W - 6 : 6, 23, '#fff', 1, p ? 2 : 0, '#05030f');
         ['PWR', 'SPD', 'RNG'].forEach((lb, k) => {
-          const sx = p ? 322 : 8, sy = 200 + k * 8; text(ctx, lb, sx, sy, '#9a8fb8', 1);
-          for (let q = 0; q < 5; q++) R(ctx, sx + 22 + q * 6, sy + 1, 5, 5, q < ch.stats[k] ? col : '#2a1c4a');
+          const sx = 104 + k * 62, sy = 196 + p * 10; text(ctx, lb, sx, sy, '#9a8fb8', 1);
+          for (let q = 0; q < 5; q++) R(ctx, sx + 21 + q * 6, sy + 1, 5, 5, q < ch.stats[k] ? col : '#2a1c4a');
         });
       }
       const who = G.mode === 'pvp' ? (G.t >> 7) & 1 : 0, mc = CHARS[G.sel[who].i];
@@ -577,6 +587,7 @@ const SCENES = {
       });
       text(ctx, 'P = ANY PUNCH   K = ANY KICK', 192, 174, '#6a5f88', 1, 1);
       text(ctx, 'GOLD MOVE NEEDS FULL SUPER BAR', 192, 184, '#6a5f88', 1, 1);
+      R(ctx, 98, 193, 188, 1, '#2a1c4a');
     }
   },
   stage: {
@@ -646,7 +657,7 @@ const SCENES = {
       R(ctx, 22, 30, 100, 100, col); ctx.drawImage(PORTRAITS[wf.ci][wf.alt ? 1 : 0], 0, 0, 48, 48, 24, 32, 96, 96);
       text(ctx, 'WINNER', 136, 34, '#ffd92a', 2, 0, '#a01040'); text(ctx, wf.ch.name, 136, 56, col, 3, 0, '#05030f');
       wrap(wf.ch.quote, 34).forEach((ln, i) => text(ctx, ln.slice(0, Math.max(0, Math.floor(G.t / 2) - i * 34)), 136, 92 + i * 11, '#fff', 1, 0, '#05030f'));
-      drawBigRig(wf.ch, wf.pal, 320, 206, -1, wf.ch.poses.win, 1);
+      drawBigRig(wf.ch, wf.pal, 320, 212, -1, wf.ch.poses.win, 1);
       text(ctx, G.f[0].wins + ' - ' + G.f[1].wins, 72, 140, '#fff', 2, 1, '#05030f');
       if (G.t > 70 && (G.t >> 4) & 1) text(ctx, 'PRESS ANY BUTTON', 192, 196, '#fff', 1, 1, '#05030f');
     }
@@ -674,10 +685,11 @@ const SCENES = {
     upd(inp, pr) { if (G.t > 720 || (G.t > 90 && ((pr[0] | pr[1]) & B.ST))) goTitle(); },
     draw() {
       gridBg('#0a1626', '#12243c'); const ch = CHARS[G.sel[0].i];
-      bigText('CONGRATULATIONS', 20, 2);
-      drawBigRig(ch, ch.pal, 192, 170, 1, ch.poses.win, 2);
-      text(ctx, ch.name + ' HOLDS THE LAST QUARTER', 192, 184, '#fff', 1, 1, '#05030f');
-      text(ctx, 'THANKS FOR PLAYING', 192, 198, '#ffd92a', 1, 1, '#05030f');
+      bigText('CONGRATULATIONS', 8, 2);
+      drawBigRig(ch, ch.pal, 96, 222, 1, ch.poses.win, 2);
+      text(ctx, ch.name, 270, 80, P1C, 3, 1, '#05030f');
+      text(ctx, 'HOLDS THE', 270, 112, '#fff', 2, 1, '#05030f'); text(ctx, 'LAST QUARTER', 270, 132, '#fff', 2, 1, '#05030f');
+      text(ctx, 'THANKS FOR PLAYING', 270, 164, '#ffd92a', 1, 1, '#05030f');
     }
   }
 };

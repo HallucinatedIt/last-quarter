@@ -1,22 +1,38 @@
 'use strict';
 // LAST QUARTER - fighters: pixel rig, poses, move lists
 // Angles are degrees from straight down; positive swings toward the way the fighter faces.
-const TH = 17, SH = 17, TO = 24, UA = 12, FA = 12, D2R = Math.PI / 180;
+const TH = 21, SH = 21, TO = 29, UA = 15, FA = 14, D2R = Math.PI / 180, BOXK = 1.22;
 const sn = a => Math.sin(a * D2R), cs = a => Math.cos(a * D2R);
 function P(t, fa, fe, ba, be, fl, fk, bl, bk, o) { return Object.assign({ t, fa, fe, ba, be, fl, fk, bl, bk }, o || {}); }
 
 function rigPts(p) {
   const fd = TH * cs(p.fl) + SH * cs(p.fl + p.fk), bd = TH * cs(p.bl) + SH * cs(p.bl + p.bk);
-  const hy = (p.hy != null ? p.hy : Math.max(fd, bd, 4)) + (p.bob || 0), hx = p.dx || 0;
+  const hy = (p.hy != null ? p.hy * BOXK : Math.max(fd, bd, 6)) + (p.bob || 0), hx = (p.dx || 0) * BOXK;
   const sx = hx + TO * sn(p.t), sy = hy + TO * cs(p.t), hd = p.t * 0.6 + (p.hd || 0);
   const leg = (a, k, off) => { const kx = hx + off + TH * sn(a), ky = hy - TH * cs(a); return [[hx + off, hy], [kx, ky], [kx + SH * sn(a + k), ky - SH * cs(a + k)]]; };
-  const arm = (a, e, off) => { const ex = sx + off + UA * sn(a), ey = sy - 3 - UA * cs(a); return [[sx + off, sy - 3], [ex, ey], [ex + FA * sn(a + e), ey - FA * cs(a + e)]]; };
-  return { hip: [hx, hy], sh: [sx, sy], head: [sx + 9 * sn(hd), sy + 9 * cs(hd)], fl: leg(p.fl, p.fk, 2), bl: leg(p.bl, p.bk, -2), fa: arm(p.fa, p.fe, 1), ba: arm(p.ba, p.be, -2) };
+  const arm = (a, e, off) => { const ex = sx + off + UA * sn(a), ey = sy - 4 - UA * cs(a); return [[sx + off, sy - 4], [ex, ey], [ex + FA * sn(a + e), ey - FA * cs(a + e)]]; };
+  return { hip: [hx, hy], sh: [sx, sy], head: [sx + 12 * sn(hd), sy + 12 * cs(hd)], fl: leg(p.fl, p.fk, 3), bl: leg(p.bl, p.bk, -3), fa: arm(p.fa, p.fe, 2), ba: arm(p.ba, p.be, -4) };
 }
 function stamp(c, x0, y0, x1, y1, w, col) {
   const dx = x1 - x0, dy = y1 - y0, n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)))), h = w / 2;
   c.fillStyle = col;
   for (let i = 0; i <= n; i++) c.fillRect(Math.round(x0 + dx * i / n - h), Math.round(y0 + dy * i / n - h), w, w);
+}
+// a limb segment whose thickness swells and tapers: w = [start, middle, end]
+function taper(c, a, b, w, d, col, ox, oy, t0, t1) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+  c.fillStyle = col;
+  for (let i = Math.round(n * (t0 || 0)); i <= Math.round(n * (t1 == null ? 1 : t1)); i++) {
+    const t = i / n, ww = Math.round((t < 0.5 ? w[0] + (w[1] - w[0]) * t * 2 : w[1] + (w[2] - w[1]) * (t - 0.5) * 2) + d);
+    if (ww > 0) c.fillRect(Math.round(a[0] + dx * t - ww / 2 + (ox || 0)), Math.round(a[1] + dy * t - ww / 2 + (oy || 0)), ww, ww);
+  }
+}
+// three-tone shading: shadow underneath, base, and a highlight on the side facing the light (up and forward)
+function shadeSeg(c, a, b, w, T, face) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; let nx = -dy / L, ny = dx / L;
+  if (nx * face * 0.5 - ny * 0.85 < 0) { nx = -nx; ny = -ny; }
+  taper(c, a, b, w, 0, T[0]); taper(c, a, b, w, -2, T[1], nx, ny);
+  const o = Math.max(1, w[1] / 2 - 2.5); taper(c, a, b, [2, 3, 1], 0, T[2], nx * o, ny * o, 0.15, 0.7);
 }
 function ringRows(c, cx, cy, rx, ry, ix, iy, col, y0, y1) {
   c.fillStyle = col;
@@ -32,16 +48,18 @@ function drawDonut(c, cx, cy, r, spin) {
   ringRows(c, cx, cy + 1, r + 1, r + 1, r * 0.3, r * 0.3, '#3a2010', -99, 99);
   ringRows(c, cx, cy + 1, r, r, r * 0.36, r * 0.36, '#d99a4e', -99, 99);
   ringRows(c, cx, cy - 1, r - 1, r - 1, r * 0.42, r * 0.42, '#ff7ac0', -99, 99);
+  ringRows(c, cx - 1, cy - 2, r - 3, r - 3, r * 0.62, r * 0.62, '#ffa8d8', -99, -2);
   for (let i = 0; i < 7; i++) { const a = i * 0.9 + spin, d = r * 0.68; R(c, cx + Math.cos(a) * d, cy - 1 + Math.sin(a) * d, 2, 1, SPRINK[i % 5]); }
 }
 // giant donut seen from the side, ring around the body. half 0 = far side, 1 = near side
 function drawTrapDonut(c, cx, cy, half) {
   const y0 = half ? 0 : -99, y1 = half ? 99 : -1;
-  ringRows(c, cx, cy + 6, 29, 10, 13, 4, '#3a2010', y0, y1);
-  ringRows(c, cx, cy + 5, 28, 9, 14, 4, '#b8792f', y0, y1);
-  ringRows(c, cx, cy + 2, 28, 9, 14, 4, '#d99a4e', y0, y1);
-  ringRows(c, cx, cy, 27, 8, 15, 5, '#ff7ac0', y0, y1);
-  for (let i = 0; i < 12; i++) { const a = i * 0.55 + 0.2, sx = Math.cos(a) * 21, sy = Math.sin(a) * 6; if ((sy >= 0) === !!half) R(c, cx + sx, cy + sy, 2, 1, SPRINK[i % 5]); }
+  ringRows(c, cx, cy + 8, 35, 12, 15, 5, '#3a2010', y0, y1);
+  ringRows(c, cx, cy + 7, 34, 11, 16, 5, '#b8792f', y0, y1);
+  ringRows(c, cx, cy + 3, 34, 11, 16, 5, '#d99a4e', y0, y1);
+  ringRows(c, cx, cy, 33, 10, 17, 6, '#ff7ac0', y0, y1);
+  ringRows(c, cx, cy - 1, 29, 7, 21, 6, '#ffa8d8', Math.max(y0, -99), Math.min(y1, -3));
+  for (let i = 0; i < 14; i++) { const a = i * 0.47 + 0.2, sx = Math.cos(a) * 26, sy = Math.sin(a) * 7; if ((sy >= 0) === !!half) R(c, cx + sx, cy + sy, 3, 1, SPRINK[i % 5]); }
 }
 function jag(c, x0, y0, x1, y1, col, amp, w) {
   let px = x0, py = y0; const n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 9));
@@ -56,68 +74,92 @@ function drawWeapon(c, hx, hy, face, ang, type, flash) {
   const ln = (a0, b0, a1, b1, w, col) => { const p = at(a0, b0), q = at(a1, b1); stamp(c, p[0], p[1], q[0], q[1], w, col); };
   let mz;
   if (type === 'ak') {
-    ln(-17, 0, 20, 0, 5, '#0c0c18'); ln(-2, 1, 2, 9, 4, '#0c0c18');
-    ln(-16, 1, -8, 0, 3, '#9a5626'); ln(-8, 0, 4, 0, 3, '#2e2e38'); ln(4, 0, 10, 0, 3, '#9a5626'); ln(10, -1, 20, -1, 1, '#5a5a66');
-    ln(-1, 2, 3, 9, 2, '#4a4a56'); ln(-6, 2, -7, 5, 2, '#9a5626'); ln(18, -2, 18, -3, 1, '#5a5a66');
-    mz = at(22, -1);
+    ln(-22, 0, 27, 0, 6, '#12081a'); ln(-2, 2, 4, 13, 5, '#12081a'); ln(-9, 2, -11, 8, 4, '#12081a');
+    ln(-21, 1, -10, 0, 4, '#7a3e18'); ln(-21, 0, -11, -1, 2, '#b86a30');            // stock
+    ln(-10, 0, 5, 0, 4, '#24242e'); ln(-9, -1, 5, -1, 1, '#5a5a6a');                  // receiver
+    ln(5, 0, 14, 0, 4, '#7a3e18'); ln(5, -1, 14, -1, 2, '#b86a30');                   // handguard
+    ln(14, 0, 27, 0, 2, '#3a3a46'); ln(14, -2, 22, -2, 1, '#5a5a6a'); ln(24, -2, 24, -4, 1, '#3a3a46'); // barrel, gas tube, sight
+    ln(-1, 3, 5, 12, 3, '#3a3a46'); ln(0, 3, 5, 11, 1, '#6a6a7a');                    // curved magazine
+    ln(-8, 3, -10, 7, 2, '#7a3e18');
+    mz = at(29, 0);
   } else {
-    ln(-1, 0, 9, 0, 5, '#0c0c18'); ln(0, -1, 9, -1, 3, '#c8c8d4'); ln(0, 1, 0, 4, 2, '#22222a');
-    mz = at(11, -1);
+    ln(-1, 0, 13, 0, 6, '#12081a'); ln(0, 2, -1, 7, 4, '#12081a');
+    ln(0, 0, 13, 0, 4, '#8a8a98'); ln(0, -1, 13, -1, 2, '#d8d8e4'); ln(0, 2, -1, 6, 2, '#2a2a34'); ln(4, 2, 6, 2, 1, '#2a2a34');
+    mz = at(15, -1);
   }
   if (flash) {
-    R(c, mz[0] - 3, mz[1] - 3, 7, 7, '#fff'); R(c, mz[0] - 5, mz[1] - 1, 11, 3, '#ffe94a');
-    R(c, mz[0] - 1, mz[1] - 5, 3, 11, '#ffe94a'); stamp(c, mz[0], mz[1], mz[0] + ux * 9, mz[1] + uy * 9, 3, '#ffb020');
+    R(c, mz[0] - 4, mz[1] - 4, 9, 9, '#fff'); R(c, mz[0] - 7, mz[1] - 1, 15, 3, '#ffe94a');
+    R(c, mz[0] - 1, mz[1] - 7, 3, 15, '#ffe94a'); stamp(c, mz[0], mz[1], mz[0] + ux * 13, mz[1] + uy * 13, 4, '#ffb020'); stamp(c, mz[0], mz[1], mz[0] + ux * 9, mz[1] + uy * 9, 2, '#fff');
   }
   return mz;
 }
+const LIMBW = { ua: [9, 10, 7], fa: [7, 9, 6], th: [12, 12, 9], sh: [9, 10, 7], to: [15, 20, 18] };
 function drawRig(c, x, gy, face, p, ch, pal, t, muz) {
-  const k = rigPts(p), X = v => Math.round(x + face * v[0]), Y = v => Math.round(gy - v[1]), ol = pal.ol;
-  const seg = (pts, w, c1, c2) => {
-    const ax = X(pts[0]), ay = Y(pts[0]), bx = X(pts[1]), by = Y(pts[1]), ex = X(pts[2]), ey = Y(pts[2]);
-    stamp(c, ax, ay, bx, by, w + 2, ol); stamp(c, bx, by, ex, ey, w + 2, ol);
-    stamp(c, ax, ay, bx, by, w, c1); stamp(c, bx, by, ex, ey, w, c2); return [ex, ey];
+  const k = rigPts(p), S = v => [Math.round(x + face * v[0]), Math.round(gy - v[1])], ol = pal.ol, bk = ch.bulk || 0;
+  const wid = (key, extra) => LIMBW[key].map(v => v + bk + (extra || 0));
+  const limb = (pts, wA, wB, TA, TB) => {
+    const a = S(pts[0]), b = S(pts[1]), e = S(pts[2]);
+    taper(c, a, b, wA, 2, ol); taper(c, b, e, wB, 2, ol); shadeSeg(c, a, b, wA, TA, face); shadeSeg(c, b, e, wB, TB, face); return e;
   };
-  const foot = (q, col) => { const fx = face > 0 ? q[0] - 3 : q[0] - 5; R(c, fx, q[1] - 4, 9, 5, ol); R(c, fx + 1, q[1] - 3, 7, 3, col); };
-  const hand = (q, col) => { R(c, q[0] - 3, q[1] - 3, 6, 6, ol); R(c, q[0] - 2, q[1] - 2, 4, 4, col); };
+  const foot = (q, T) => {
+    const fx = face > 0 ? q[0] - 5 : q[0] - 8;
+    R(c, fx, q[1] - 6, 14, 7, ol); R(c, fx + 1, q[1] - 5, 12, 5, T[1]); R(c, fx + 1, q[1] - 1, 12, 1, T[0]);
+    R(c, face > 0 ? fx + 6 : fx + 2, q[1] - 5, 6, 1, T[2]); R(c, face > 0 ? fx + 1 : fx + 10, q[1] - 5, 3, 4, T[0]);
+  };
+  const fist = (q, T) => {
+    R(c, q[0] - 5, q[1] - 5, 10, 10, ol); R(c, q[0] - 4, q[1] - 4, 8, 8, T[0]); R(c, face > 0 ? q[0] - 3 : q[0] - 4, q[1] - 4, 7, 6, T[1]);
+    R(c, face > 0 ? q[0] : q[0] - 3, q[1] - 4, 3, 2, T[2]); R(c, face > 0 ? q[0] + 2 : q[0] - 3, q[1] - 1, 1, 3, T[0]);
+  };
+  const T = pal.T, F = pal.F;
   // far-side limbs
-  hand(seg(k.ba, 4, pal.sleeveD, pal.foreD), pal.handD);
-  foot(seg(k.bl, 6, pal.pantsD, pal.shinD), pal.shoeD);
-  // torso
-  const hx = X(k.hip), hy = Y(k.hip), sx = X(k.sh), sy = Y(k.sh);
-  R(c, hx - 7, hy - 5, 14, 10, ol); stamp(c, hx, hy - 4, sx, sy + 3, 14, ol);
-  R(c, hx - 6, hy - 4, 12, 8, pal.pants); stamp(c, hx, hy - 5, sx, sy + 3, 12, pal.top);
-  stamp(c, hx - face * 3, hy - 6, sx - face * 3, sy + 4, 4, pal.topD);
-  R(c, hx - 6, hy - 5, 12, 2, pal.belt);
-  const at = (u, off) => [Math.round(sx + (hx - sx) * u + face * off), Math.round(sy + 3 + (hy - 8 - sy) * u)];
+  fist(limb(k.ba, wid('ua', -1), wid('fa', -1), F.sleeve, F.fore), F.hand);
+  foot(limb(k.bl, wid('th', -1), wid('sh', -1), F.pants, F.shin), F.shoe);
+  // pelvis and torso
+  const hp = S(k.hip), sh = S(k.sh), hx = hp[0], hy = hp[1], tw = wid('to');
+  R(c, hx - 9, hy - 7, 19, 13, ol); R(c, hx - 8, hy - 6, 17, 11, T.pants[1]); R(c, face > 0 ? hx - 8 : hx + 5, hy - 6, 4, 11, T.pants[0]);
+  const ta = [hx, hy - 5], tb = [sh[0], sh[1] + 5];
+  taper(c, ta, tb, tw, 2, ol); shadeSeg(c, ta, tb, tw, T.top, face);
+  R(c, hx - 8, hy - 7, 17, 3, pal.belt); R(c, face > 0 ? hx + 2 : hx - 5, hy - 7, 3, 3, pal.beltL);
+  const at = (u, off) => [Math.round(tb[0] + (ta[0] - tb[0]) * u + face * off), Math.round(tb[1] + (ta[1] - tb[1]) * u)];
   if (ch.deco) ch.deco(c, at, face, pal, p);
-  // head
-  const cx = X(k.head), cy = Y(k.head);
-  R(c, cx - 6, cy - 6, 12, 12, ol); R(c, cx - 5, cy - 5, 10, 10, pal.skin);
+  // neck and head
+  const hc = S(k.head), cx = hc[0], cy = hc[1];
+  stamp(c, sh[0], sh[1] - 1, cx, cy + 3, 8, ol); stamp(c, sh[0], sh[1] - 1, cx, cy + 3, 6, pal.skinD);
   const px = (dx, dy, w, h, col) => R(c, face > 0 ? cx + dx : cx - dx - w, cy + dy, w, h, col);
-  px(-5, 3, 4, 2, pal.skinD);
+  px(-7, -8, 14, 11, ol); px(-5, 2, 11, 7, ol); px(6, -1, 3, 5, ol);
+  px(-6, -7, 12, 9, pal.skin); px(-4, 2, 9, 6, pal.skin); px(6, 0, 2, 3, pal.skin);
+  px(-6, -2, 3, 4, pal.skinD); px(-4, 5, 3, 3, pal.skinD); px(-4, 7, 9, 1, pal.skinD); px(-3, -1, 2, 3, pal.skinD); px(6, 3, 1, 1, pal.skinD);
+  px(1, -4, 5, 1, pal.ol); px(2, -3, 3, 2, pal.white); px(4, -3, 1, 2, pal.eye); px(3, 4, 3, 1, pal.mouth);
   ch.head(px, pal, t);
   // near-side leg, weapon, arm
-  foot(seg(k.fl, 6, pal.pants, pal.shin), pal.shoe);
-  const wa = p.w != null ? p.w : ch.wRest, hpt = [X(k.fa[2]), Y(k.fa[2])];
+  foot(limb(k.fl, wid('th'), wid('sh'), T.pants, T.shin), T.shoe);
+  const wa = p.w != null ? p.w : ch.wRest, hpt = S(k.fa[2]);
   if (ch.weapon === 'ak' && !p.now) drawWeapon(c, hpt[0], hpt[1], face, wa, 'ak', muz);
-  hand(seg(k.fa, 4, pal.sleeve, pal.fore), pal.hand);
+  const s0 = S(k.fa[0]);
+  const hd2 = limb(k.fa, wid('ua'), wid('fa'), T.sleeve, T.fore);
+  R(c, s0[0] - 5, s0[1] - 6, 10, 3, T.sleeve[2]); R(c, s0[0] - 6, s0[1] - 4, 2, 5, T.sleeve[1]);
   if (ch.weapon === 'pistol' && !p.now) drawWeapon(c, hpt[0], hpt[1], face, wa, 'pistol', muz);
-  if (p.prop === 'donut') drawDonut(c, hpt[0], hpt[1] - 4, 9, t * 0.3);
+  fist(hd2, T.hand);
+  if (p.prop === 'donut') drawDonut(c, hpt[0], hpt[1] - 6, 11, t * 0.3);
   return k;
 }
 // world position of the gun muzzle for the fighter's current pose
 function muzzleOf(f) {
-  const k = rigPts(f.pose), a = f.pose.w != null ? f.pose.w : f.ch.wRest, L = f.ch.weapon === 'ak' ? 22 : 11;
+  const k = rigPts(f.pose), a = f.pose.w != null ? f.pose.w : f.ch.wRest, L = f.ch.weapon === 'ak' ? 29 : 15;
   return { x: f.x + f.face * (k.fa[2][0] + L * sn(a)), y: f.y + k.fa[2][1] - L * cs(a) };
 }
+const TONED = ['sleeve', 'fore', 'hand', 'pants', 'shin', 'shoe', 'top', 'skin'];
+function lighten(h, k) { const p = hex(h); return 'rgb(' + p.map(v => Math.round(v + (255 - v) * k)).join(',') + ')'; }
 function mkPal(o) {
-  const p = Object.assign({ ol: '#0c0c18', eye: '#101018', belt: '#222' }, o);
-  for (const key of ['sleeve', 'fore', 'hand', 'pants', 'shin', 'shoe', 'top', 'skin']) p[key + 'D'] = shade(p[key], 0.68);
+  const p = Object.assign({ ol: '#12081a', eye: '#101018', belt: '#222222', white: '#ffffff', mouth: '#6a2a2a' }, o); p.T = {}; p.F = {};
+  for (const key of TONED) { p.T[key] = [shade(p[key], 0.62), p[key], lighten(p[key], 0.32)]; p.F[key] = [shade(p[key], 0.4), shade(p[key], 0.6), shade(p[key], 0.78)]; }
+  p.skinD = p.T.skin[0]; p.hairD = shade(p.hair, 0.62); p.hairL = lighten(p.hair, 0.38); p.accD = shade(p.acc, 0.62); p.accL = lighten(p.acc, 0.38); p.beltL = lighten(p.belt, 0.45);
   return p;
 }
 function monoPal(col, ol) {
-  const p = {};
-  for (const key of ['skin', 'top', 'sleeve', 'fore', 'hand', 'pants', 'shin', 'shoe', 'hair', 'acc', 'belt', 'eye', 'beard', 'skinD', 'topD', 'sleeveD', 'foreD', 'handD', 'pantsD', 'shinD', 'shoeD']) p[key] = col;
+  const p = { T: {}, F: {} };
+  for (const key of ['skin', 'top', 'hair', 'acc', 'belt', 'eye', 'beard', 'skinD', 'hairD', 'hairL', 'accD', 'accL', 'beltL', 'white', 'mouth']) p[key] = col;
+  for (const key of TONED) { p.T[key] = [col, col, col]; p.F[key] = [col, col, col]; }
   p.ol = ol; return p;
 }
 const PAL_W = monoPal('#ffffff', '#c8c8e0'), PAL_S = monoPal('#fff36a', '#ffffff'), PAL_G = monoPal('#ff4a66', '#ff4a66');
@@ -205,8 +247,11 @@ function twinSet(A) {
     jLK: twinAir('L', A.jK[0], A.jK[1], A.jK[2], [0, -8, 32, 28]), jMK: twinAir('M', A.jK[0], A.jK[1], A.jK[2], [0, -8, 35, 28]), jHK: twinAir('H', A.jK[0], A.jK[1], A.jK[2], [0, -8, 38, 28])
   };
 }
+function scaleHits(mv) { if (mv.hits) for (const h of mv.hits) h.box = h.box.map(v => Math.round(v * BOXK)); }
 function finishChar(ch) {
   for (const sp of ch.specials) sp.moves = [0, 1, 2].map(s => Object.assign({ name: sp.name, cost: sp.cost, special: 1 }, sp.mk(s)));
+  for (const sp of ch.specials) sp.moves.forEach(scaleHits);
+  for (const key in ch.normals) scaleHits(ch.normals[key]);
   return ch;
 }
 
@@ -229,15 +274,21 @@ function mkNic() {
     jP: [J, j({ fa: 62, fe: 0 })], jK: [J, j({ t: -8, fl: 52, fk: 0 })]
   };
   return finishChar({
-    id: 'nic', name: 'NIC', title: 'LIVE WIRE', speed: 1.5, hp: 1000, jump: 7.2, dmg: 1, weapon: null, wRest: 90,
+    id: 'nic', name: 'NIC', title: 'LIVE WIRE', speed: 1.7, hp: 1000, jump: 7.9, dmg: 1, weapon: null, wRest: 90,
     stats: [3, 4, 3], quote: 'YOU NEVER SAW THE STORM COMING.',
     pal: mkPal({ skin: '#f0c090', top: '#2440a8', sleeve: '#2440a8', fore: '#1a2c78', hand: '#ffe94a', pants: '#22263c', shin: '#22263c', shoe: '#ffe94a', hair: '#ffe066', acc: '#ffe94a', belt: '#ffe94a' }),
     pal2: mkPal({ skin: '#f0c090', top: '#6a2aa8', sleeve: '#6a2aa8', fore: '#451a78', hand: '#6ee7ff', pants: '#2a2230', shin: '#2a2230', shoe: '#6ee7ff', hair: '#e8f4ff', acc: '#6ee7ff', belt: '#6ee7ff' }),
     head(px, pal) {
-      px(-6, -8, 11, 4, pal.hair); px(-6, -5, 2, 5, pal.hair); px(-5, -10, 2, 2, pal.hair); px(-2, -11, 3, 3, pal.hair); px(2, -10, 2, 2, pal.hair); px(4, -8, 2, 2, pal.hair);
-      px(2, -2, 2, 2, pal.eye); px(2, 3, 3, 1, pal.ol);
+      px(-8, -10, 15, 5, pal.ol); px(-8, -6, 4, 8, pal.ol);
+      px(-7, -9, 13, 4, pal.hair); px(-7, -6, 3, 7, pal.hair); px(4, -6, 3, 2, pal.hair);
+      px(-6, -13, 4, 4, pal.ol); px(-2, -15, 5, 6, pal.ol); px(3, -13, 4, 4, pal.ol); px(6, -11, 3, 4, pal.ol);
+      px(-5, -12, 2, 3, pal.hair); px(-1, -14, 3, 5, pal.hair); px(4, -12, 2, 3, pal.hair); px(6, -10, 2, 3, pal.hair);
+      px(-3, -9, 7, 1, pal.hairL); px(0, -13, 1, 3, pal.hairL); px(-7, -2, 2, 3, pal.hairD);
     },
-    deco(c, at, face, pal) { let q = at(0.15, 2); R(c, q[0] - 1, q[1], 3, 3, pal.acc); q = at(0.4, 0); R(c, q[0] - 1, q[1], 3, 3, pal.acc); q = at(0.62, 2); R(c, q[0] - 1, q[1], 3, 3, pal.acc); },
+    deco(c, at, face, pal) {
+      let q = at(0.12, 3); R(c, q[0] - 2, q[1], 5, 3, pal.acc); q = at(0.26, 1); R(c, q[0] - 2, q[1], 4, 3, pal.acc); q = at(0.4, 4); R(c, q[0] - 2, q[1], 5, 3, pal.acc); q = at(0.55, 2); R(c, q[0] - 1, q[1], 3, 3, pal.acc);
+      q = at(0, 0); R(c, q[0] - 6, q[1] - 2, 12, 2, pal.accD);
+    },
     poses: ps, normals: stdSet(A, 0, 1),
     ai: { zone: ['volt', 'bolt'], anti: 'upper', rush: 'volt', sup: 'storm', supD: [30, 320] },
     specials: [
@@ -260,7 +311,7 @@ function mkNic() {
           anim: [[cast1, 9], [cast2, 40]], dur: 38 + s * 2,
           tick(f, o, mf) {
             if (mf === 11) {
-              spawnProj(f, { type: 'volt', x: f.x + f.face * 28, y: f.y + 44, vx: f.face * (3.2 + s * 0.9), vy: 0, life: 140, w: 14, h: 14, hit: { d: 75, hs: 20, bs: 14, pu: 2.4, stop: 7, lv: 'mid', el: 1, sf: 'zap', chip: 1 } });
+              spawnProj(f, { type: 'volt', x: f.x + f.face * 36, y: f.y + 56, vx: f.face * (3.4 + s * 0.9), vy: 0, life: 140, w: 18, h: 18, hit: { d: 75, hs: 20, bs: 14, pu: 2.4, stop: 7, lv: 'mid', el: 1, sf: 'zap', chip: 1 } });
               sfx('zap');
             }
           }
@@ -271,7 +322,7 @@ function mkNic() {
           anim: [[sky, 34]], dur: 34,
           tick(f, o, mf) {
             if (mf === 8) {
-              spawnProj(f, { type: 'bolt', x: f.x + f.face * (64 + s * 58), y: 95, vx: 0, vy: 0, delay: 20, life: 32, w: 22, h: 190, hit: { d: 95, hs: 24, bs: 16, pu: 2, stop: 8, lv: 'mid', el: 1, sf: 'thunder', chip: 1 } });
+              spawnProj(f, { type: 'bolt', x: f.x + f.face * (80 + s * 64), y: 95, vx: 0, vy: 0, delay: 20, life: 32, w: 26, h: 190, hit: { d: 95, hs: 24, bs: 16, pu: 2, stop: 8, lv: 'mid', el: 1, sf: 'thunder', chip: 1 } });
               sfx('charge');
             }
           }
@@ -300,15 +351,22 @@ function mkBrandon() {
     jP: [J, j({ fa: 48, fe: 0, w: 40 })], jK: [J, j({ t: -8, fl: 52, fk: 0 })]
   };
   return finishChar({
-    id: 'brandon', name: 'BRANDON', title: 'THIRTY ROUND MAG', speed: 1.2, hp: 1080, jump: 6.9, dmg: 1.06, weapon: 'ak', wRest: 80, gun: 'gun',
+    id: 'brandon', name: 'BRANDON', title: 'THIRTY ROUND MAG', speed: 1.35, hp: 1080, jump: 7.6, bulk: 1, dmg: 1.06, weapon: 'ak', wRest: 80, gun: 'gun',
     stats: [4, 2, 5], quote: 'THIRTY ROUNDS IN THE MAG. YOU LASTED THREE.',
     pal: mkPal({ skin: '#d9a377', top: '#4a5a2c', sleeve: '#4a5a2c', fore: '#d9a377', hand: '#2b2b2b', pants: '#b79b6a', shin: '#b79b6a', shoe: '#3b2a1a', hair: '#39451f', acc: '#33401c', belt: '#2b2b2b', beard: '#4a2f1a' }),
     pal2: mkPal({ skin: '#d9a377', top: '#3a3f4a', sleeve: '#3a3f4a', fore: '#d9a377', hand: '#1c1c1c', pants: '#2b2f38', shin: '#2b2f38', shoe: '#111111', hair: '#22252c', acc: '#22252c', belt: '#111', beard: '#2a2a2a' }),
     head(px, pal) {
-      px(-6, -8, 12, 4, pal.hair); px(4, -5, 5, 2, pal.acc); px(0, -3, 6, 2, pal.eye);
-      px(-1, 1, 7, 4, pal.beard); px(-5, -1, 3, 6, pal.beard);
+      px(-8, -11, 16, 7, pal.ol); px(5, -6, 8, 4, pal.ol);
+      px(-7, -10, 14, 5, pal.hair); px(-7, -6, 3, 3, pal.hair); px(5, -5, 7, 2, pal.accD); px(-4, -10, 7, 1, pal.hairL); px(-7, -6, 14, 1, pal.hairD);
+      px(0, -4, 8, 4, pal.ol); px(1, -3, 6, 2, pal.eye); px(2, -3, 2, 1, pal.white);
+      px(-5, 0, 5, 6, pal.beard); px(0, 2, 7, 6, pal.beard); px(-4, 6, 9, 2, pal.beard); px(3, 4, 3, 1, pal.ol); px(1, 2, 5, 1, pal.hairD);
     },
-    deco(c, at, face, pal) { let q = at(0.5, 2); R(c, q[0] - 2, q[1], 5, 6, pal.acc); q = at(0.5, -4); R(c, q[0] - 2, q[1], 4, 6, pal.acc); q = at(0.12, 0); R(c, q[0] - 5, q[1], 10, 2, pal.acc); },
+    deco(c, at, face, pal) {
+      let q = at(0.2, 0); R(c, q[0] - 8, q[1], 16, 13, pal.accD); R(c, q[0] - 7, q[1] + 1, 14, 11, pal.acc);
+      q = at(0.62, 3); R(c, q[0] - 3, q[1] - 1, 6, 8, pal.ol); R(c, q[0] - 2, q[1], 4, 6, pal.accD); R(c, q[0] - 2, q[1], 4, 2, pal.accL);
+      q = at(0.62, -4); R(c, q[0] - 3, q[1] - 1, 6, 8, pal.ol); R(c, q[0] - 2, q[1], 4, 6, pal.accD); R(c, q[0] - 2, q[1], 4, 2, pal.accL);
+      q = at(0.3, 2); R(c, q[0] - 3, q[1], 6, 2, pal.accL);
+    },
     poses: ps, normals: stdSet(A, 12, 0),
     ai: { zone: ['burst', 'burst'], anti: 'flak', rush: 'charge', sup: 'auto', supD: [60, 330] },
     specials: [
@@ -366,16 +424,22 @@ function mkEli() {
   };
   const rush = []; for (let i = 0; i < 4; i++) rush.push([fang1, 5], [fang2, 5]);
   return finishChar({
-    id: 'eli', name: 'ELI', title: 'DOUBLE TAP', speed: 1.9, hp: 940, jump: 7.5, dmg: 1, weapon: null, wRest: 90,
+    id: 'eli', name: 'ELI', title: 'DOUBLE TAP', speed: 2.1, hp: 940, jump: 8.2, dmg: 1, weapon: null, wRest: 90,
     stats: [3, 5, 2], quote: 'ONCE IS NEVER ENOUGH.',
     pal: mkPal({ skin: '#c98d62', top: '#a81c2c', sleeve: '#c98d62', fore: '#f1ead8', hand: '#f1ead8', pants: '#18181f', shin: '#18181f', shoe: '#c98d62', hair: '#141414', acc: '#e02a3a', belt: '#f1ead8' }),
     pal2: mkPal({ skin: '#c98d62', top: '#1c5aa8', sleeve: '#c98d62', fore: '#f1ead8', hand: '#f1ead8', pants: '#e8e4d8', shin: '#e8e4d8', shoe: '#c98d62', hair: '#141414', acc: '#2a8ae0', belt: '#222' }),
     head(px, pal, t) {
       const fl = (t >> 3) & 1;
-      px(-6, -8, 11, 3, pal.hair); px(-6, -5, 2, 6, pal.hair); px(-6, -5, 12, 2, pal.acc);
-      px(-10, -5 + fl, 4, 2, pal.acc); px(-13, -3 - fl, 4, 2, pal.acc); px(2, -2, 2, 2, pal.eye); px(2, 3, 3, 1, pal.ol);
+      px(-8, -10, 15, 5, pal.ol); px(-8, -6, 4, 9, pal.ol);
+      px(-7, -9, 13, 3, pal.hair); px(-7, -6, 3, 8, pal.hair); px(-3, -9, 6, 1, pal.hairL);
+      px(-8, -7, 16, 4, pal.ol); px(-7, -6, 14, 2, pal.acc); px(-2, -6, 6, 1, pal.accL);
+      px(-11, -7, 4, 4, pal.ol); px(-10, -6, 3, 2, pal.accD);
+      px(-15, -7 + fl, 6, 4, pal.ol); px(-14, -6 + fl, 5, 2, pal.acc); px(-18, -4 - fl, 6, 4, pal.ol); px(-17, -3 - fl, 5, 2, pal.accD);
     },
-    deco(c, at, face, pal) { const q = at(0.3, 2); R(c, q[0] - 1, q[1], 2, 5, pal.acc); R(c, q[0] + 2, q[1], 2, 5, pal.acc); },
+    deco(c, at, face, pal) {
+      let q = at(0.1, 2); R(c, q[0] - 1, q[1], 2, 14, pal.accL); R(c, q[0] + 3, q[1], 2, 14, pal.accL);
+      q = at(0, 0); R(c, q[0] - 3, q[1] - 3, 7, 4, pal.skin);
+    },
     poses: ps, normals: twinSet(A),
     ai: { zone: ['blitz', 'fang'], anti: 'rise', rush: 'fang', sup: 'double', supD: [20, 130] },
     specials: [
@@ -384,7 +448,7 @@ function mkEli() {
           anim: [[dashW, 6], [dash, 10]].concat(rush, [[I, 18]]), dur: 74, trail: 1,
           hits: [0, 1, 2, 3, 4, 5, 6, 7].map(i => ({ f0: 16 + i * 5, f1: 17 + i * 5, box: [4, 28, 42, 34], d: i < 7 ? 40 : 80, hs: 22, bs: 14, pu: 0.6, stop: i < 7 ? 3 : 12, lv: 'mid', sf: i < 7 ? 'hitM' : 'hitH', chip: 1, launch: i === 7 ? [3.5, 7] : null })),
           tick(f, o, mf) {
-            if (mf >= 6 && mf < 16) { if (Math.abs(o.x - f.x) < 40) f.mf = 15; else f.vx = f.face * 7.5; }
+            if (mf >= 6 && mf < 16) { if (Math.abs(o.x - f.x) < 50) f.mf = 15; else f.vx = f.face * 7.5; }
             else if (mf >= 16 && mf < 56) f.vx = f.face * 0.8;
           }
         })
@@ -418,7 +482,7 @@ function mkEli() {
               if (mf === 0) { sfx('charge'); f.glow = 7; }
               if (mf >= 7 && mf < 7 + len) {
                 if (mf === 7) sfx('whoosh');
-                if (Math.abs(o.x - f.x) < 40 && Math.abs(o.y - f.y) < 50) f.mf = 6 + len; else f.vx = f.face * 8.5;
+                if (Math.abs(o.x - f.x) < 50 && Math.abs(o.y - f.y) < 60) f.mf = 6 + len; else f.vx = f.face * 8.5;
               }
             }
           };
@@ -454,19 +518,26 @@ function mkCody() {
     jP: [J, j({ fa: 55, fe: 0, w: 60 })], jK: [J, j({ t: -8, fl: 52, fk: 0 })]
   };
   const ch = finishChar({
-    id: 'cody', name: 'CODY', title: 'SIDEARM', speed: 1.55, hp: 1000, jump: 7.2, dmg: 1, weapon: 'pistol', wRest: 84, gun: 'pistol',
+    id: 'cody', name: 'CODY', title: 'SIDEARM', speed: 1.75, hp: 1000, jump: 7.9, dmg: 1, weapon: 'pistol', wRest: 84, gun: 'pistol',
     stats: [4, 3, 4], quote: "SAFETY'S OFF. SO ARE YOU.",
     pal: mkPal({ skin: '#f2c9a0', top: '#f4f4f0', sleeve: '#f4f4f0', fore: '#f2c9a0', hand: '#f2c9a0', pants: '#3566b0', shin: '#3566b0', shoe: '#e8e8e8', hair: '#d8b25a', acc: '#1e6fd0', belt: '#5a3a1e' }),
     pal2: mkPal({ skin: '#f2c9a0', top: '#26262c', sleeve: '#26262c', fore: '#f2c9a0', hand: '#f2c9a0', pants: '#6a6f7a', shin: '#6a6f7a', shoe: '#d02a2a', hair: '#d8b25a', acc: '#d02a2a', belt: '#111' }),
-    head(px, pal) { px(-6, -8, 11, 4, pal.acc); px(-10, -5, 5, 2, pal.acc); px(3, -5, 3, 2, pal.hair); px(-6, -4, 2, 3, pal.hair); px(2, -2, 2, 2, pal.eye); px(2, 3, 3, 1, pal.ol); },
-    deco(c, at, face, pal, p) { const q = at(1, -5); R(c, q[0] - 2, q[1] + 3, 4, 7, pal.belt); if (p.now) R(c, q[0] - 1, q[1] + 1, 3, 3, '#c8c8d4'); },
+    head(px, pal) {
+      px(-8, -11, 15, 7, pal.ol); px(-14, -7, 8, 4, pal.ol);
+      px(-7, -10, 13, 5, pal.acc); px(-13, -6, 7, 2, pal.accD); px(-3, -10, 6, 1, pal.accL); px(-7, -6, 13, 1, pal.accD); px(2, -8, 3, 2, pal.white);
+      px(3, -5, 4, 2, pal.hair); px(-7, -5, 3, 5, pal.hair); px(-7, -1, 2, 2, pal.hairD);
+    },
+    deco(c, at, face, pal, p) {
+      let q = at(0, 0); R(c, q[0] - 4, q[1] - 2, 9, 3, pal.T.top[0]);
+      q = at(1, -6); R(c, q[0] - 3, q[1] + 1, 6, 10, pal.ol); R(c, q[0] - 2, q[1] + 2, 4, 8, pal.belt); if (p.now) { R(c, q[0] - 2, q[1] - 1, 4, 4, '#8a8a98'); R(c, q[0] - 2, q[1] - 1, 4, 1, '#d8d8e4'); }
+    },
     poses: ps, normals: stdSet(A, 3, 0),
     ai: { zone: ['quick', 'quick'], anti: 'sky', rush: 'roll', sup: 'donut', supD: [50, 230] },
     specials: [
       {
         key: 'donut', name: 'DONUT HOLE', cmd: 'D,F,D,F+P', motion: 'sqcf', btn: 'P', cost: 1, mk: () => ({
           anim: [[thW, 14], [thA, 12], [IN, 22]], dur: 48,
-          tick(f, o, mf) { if (mf === 14) { spawnProj(f, { type: 'donut', x: f.x + f.face * 24, y: f.y + 42, vx: f.face * 4.6, vy: 0, life: 90, w: 20, h: 22, grab: 1, hit: {} }); sfx('whoosh'); } }
+          tick(f, o, mf) { if (mf === 14) { spawnProj(f, { type: 'donut', x: f.x + f.face * 30, y: f.y + 54, vx: f.face * 4.8, vy: 0, life: 90, w: 24, h: 28, grab: 1, hit: {} }); sfx('whoosh'); } }
         })
       },
       {
@@ -502,7 +573,7 @@ function mkCody() {
     name: 'DONUT HOLE', special: 1, anim: [[IN, 999]], dur: 128,
     tick(f, o, mf) {
       f.inv = 2; f.ghost = true;
-      if (mf < 22) { f.x += (o.x - f.face * 31 - f.x) * 0.25; f.pose = run[(mf >> 2) & 3]; return; }
+      if (mf < 22) { f.x += (o.x - f.face * 40 - f.x) * 0.25; f.pose = run[(mf >> 2) & 3]; return; }
       f.pose = IN;
       HITS.forEach((T, i) => { if (mf === T) finHit(f, o, 45, false); if (mf >= T && mf < T + 7) f.pose = i % 2 ? fp2 : fp1; });
       if (mf >= 76 && mf < 100) f.pose = fpW;

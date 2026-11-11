@@ -1,6 +1,6 @@
 # Last Quarter
 
-A two-player, 90s-style arcade fighting game that runs in the browser. Build 0.1.
+A two-player, 90s-style arcade fighting game that runs in the browser. Build 0.2.
 
 Open `index.html` in a browser to play. No install, no build step.
 
