@@ -613,7 +613,7 @@ const SCENES = {
       }
       text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 214, '#fff', 1, 1, '#12061e');
       text(ctx, '9 KEY = PRACTICE MODE', 192, 186, '#6ae0ff', 1, 1, '#12061e');
-      text(ctx, 'BUILD 0.3', 192, 200, '#9a8fb8', 1, 1);
+      text(ctx, 'BUILD 0.4', 192, 200, '#9a8fb8', 1, 1);
     }
   },
   select: {

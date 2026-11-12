@@ -96,7 +96,7 @@ kbd { font-family: var(--display); font-size: 8px; background: #0c0916; border: 
 <main class="cab">
   <header class="marquee">
     <h1>LAST QUARTER</h1>
-    <p>Two-player versus fighting &middot; build 0.3</p>
+    <p>Two-player versus fighting &middot; build 0.4</p>
   </header>
   <div class="bezel">
     <div class="crt" id="crt">
@@ -372,11 +372,20 @@ function taper(c, a, b, w, d, col, ox, oy, t0, t1) {
   }
 }
 // three-tone shading: shadow underneath, base, and a highlight on the side facing the light (up and forward)
-function shadeSeg(c, a, b, w, T, face) {
+function shadeSeg(c, a, b, w, T, face, t0, t1) {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; let nx = -dy / L, ny = dx / L;
   if (nx * face * 0.5 - ny * 0.85 < 0) { nx = -nx; ny = -ny; }
-  taper(c, a, b, w, 0, T[0]); taper(c, a, b, w, -2, T[1], nx, ny);
-  const o = Math.max(1, w[1] / 2 - 2.5); taper(c, a, b, [2, 3, 1], 0, T[2], nx * o, ny * o, 0.15, 0.7);
+  taper(c, a, b, w, 0, T[0], 0, 0, t0, t1); taper(c, a, b, w, -2, T[1], nx, ny, t0, t1);
+  const o = Math.max(1, w[1] / 2 - 2.5); taper(c, a, b, [2, 3, 1], 0, T[2], nx * o, ny * o, t0 == null ? 0.15 : t0, t1 == null ? 0.7 : Math.min(t1, 0.7));
+}
+// tattoo sleeve: a fixed speckle pattern that follows the arm
+function tattoo(c, a, b, w, col, t0) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  c.fillStyle = col;
+  for (let i = Math.round(L * (t0 || 0)) + 1; i < L - 1; i++) {
+    const t = i / L, ww = t < 0.5 ? w[0] + (w[1] - w[0]) * t * 2 : w[1] + (w[2] - w[1]) * (t - 0.5) * 2, h = Math.floor(ww / 2) - 1;
+    for (let j = -h; j <= h; j++) if ((((i * 7 + j * 11 + (i >> 2) * 5) % 5) + 5) % 5 < 2) c.fillRect(Math.round(a[0] + ux * i - uy * j), Math.round(a[1] + uy * i + ux * j), 1, 1);
+  }
 }
 function ringRows(c, cx, cy, rx, ry, ix, iy, col, y0, y1) {
   c.fillStyle = col;
@@ -441,9 +450,13 @@ const LIMBW = { ua: [9, 10, 7], fa: [7, 9, 6], th: [12, 12, 9], sh: [9, 10, 7], 
 function drawRig(c, x, gy, face, p, ch, pal, t, muz) {
   const k = rigPts(p), S = v => [Math.round(x + face * v[0]), Math.round(gy - v[1])], ol = pal.ol, bk = ch.bulk || 0;
   const wid = (key, extra) => LIMBW[key].map(v => v + bk + (extra || 0));
-  const limb = (pts, wA, wB, TA, TB) => {
+  const ar = ch.arms || { cuff: 0, tat: [] };
+  const limb = (pts, wA, wB, TA, TB, cuffT, tA, tB, tc) => {
     const a = S(pts[0]), b = S(pts[1]), e = S(pts[2]);
-    taper(c, a, b, wA, 2, ol); taper(c, b, e, wB, 2, ol); shadeSeg(c, a, b, wA, TA, face); shadeSeg(c, b, e, wB, TB, face); return e;
+    taper(c, a, b, wA, 2, ol); taper(c, b, e, wB, 2, ol); shadeSeg(c, a, b, wA, TA, face); shadeSeg(c, b, e, wB, TB, face);
+    if (tA) tattoo(c, a, b, wA, tc, cuffT ? ar.cuff : 0); if (tB) tattoo(c, b, e, wB, tc, 0);
+    if (cuffT) shadeSeg(c, a, b, wA, cuffT, face, 0, ar.cuff);
+    return e;
   };
   const foot = (q, T) => {
     const fx = face > 0 ? q[0] - 5 : q[0] - 8;
@@ -456,10 +469,10 @@ function drawRig(c, x, gy, face, p, ch, pal, t, muz) {
   };
   const T = pal.T, F = pal.F;
   // far-side limbs
-  fist(limb(k.ba, wid('ua', -1), wid('fa', -1), F.sleeve, F.fore), F.hand);
+  fist(limb(k.ba, wid('ua', -1), wid('fa', -1), F.sleeve, F.fore, ar.cuff ? F.top : null, ar.tat[2], ar.tat[3], pal.tatF), F.hand);
   foot(limb(k.bl, wid('th', -1), wid('sh', -1), F.pants, F.shin), F.shoe);
   // pelvis and torso
-  const hp = S(k.hip), sh = S(k.sh), hx = hp[0], hy = hp[1], tw = wid('to');
+  const hp = S(k.hip), sh = S(k.sh), hx = hp[0], hy = hp[1], tw = wid('to').map((v, i) => v + (ch.gut ? ch.gut[i] : 0));
   R(c, hx - 9, hy - 7, 19, 13, ol); R(c, hx - 8, hy - 6, 17, 11, T.pants[1]); R(c, face > 0 ? hx - 8 : hx + 5, hy - 6, 4, 11, T.pants[0]);
   const ta = [hx, hy - 5], tb = [sh[0], sh[1] + 5];
   taper(c, ta, tb, tw, 2, ol); shadeSeg(c, ta, tb, tw, T.top, face);
@@ -480,8 +493,8 @@ function drawRig(c, x, gy, face, p, ch, pal, t, muz) {
   const wa = p.w != null ? p.w : ch.wRest, hpt = S(k.fa[2]);
   if (ch.weapon === 'ak' && !p.now) drawWeapon(c, hpt[0], hpt[1], face, wa, 'ak', muz);
   const s0 = S(k.fa[0]);
-  const hd2 = limb(k.fa, wid('ua'), wid('fa'), T.sleeve, T.fore);
-  R(c, s0[0] - 5, s0[1] - 6, 10, 3, T.sleeve[2]); R(c, s0[0] - 6, s0[1] - 4, 2, 5, T.sleeve[1]);
+  const hd2 = limb(k.fa, wid('ua'), wid('fa'), T.sleeve, T.fore, ar.cuff ? T.top : null, ar.tat[0], ar.tat[1], pal.tat), capT = ar.cuff ? T.top : T.sleeve;
+  R(c, s0[0] - 5, s0[1] - 6, 10, 3, capT[2]); R(c, s0[0] - 6, s0[1] - 4, 2, 5, capT[1]);
   if (ch.weapon === 'pistol' && !p.now) drawWeapon(c, hpt[0], hpt[1], face, wa, 'pistol', muz);
   fist(hd2, T.hand);
   if (p.prop === 'donut') drawDonut(c, hpt[0], hpt[1] - 6, 11, t * 0.3);
@@ -498,11 +511,12 @@ function mkPal(o) {
   const p = Object.assign({ ol: '#12081a', eye: '#101018', belt: '#222222', white: '#ffffff', mouth: '#6a2a2a' }, o); p.T = {}; p.F = {};
   for (const key of TONED) { p.T[key] = [shade(p[key], 0.62), p[key], lighten(p[key], 0.32)]; p.F[key] = [shade(p[key], 0.4), shade(p[key], 0.6), shade(p[key], 0.78)]; }
   p.skinD = p.T.skin[0]; p.hairD = shade(p.hair, 0.62); p.hairL = lighten(p.hair, 0.38); p.accD = shade(p.acc, 0.62); p.accL = lighten(p.acc, 0.38); p.beltL = lighten(p.belt, 0.45);
+  p.tat = mixc(p.skin, '#26303c', 0.62); p.tatF = '#1c222c'; p.stub = mixc(p.skin, p.beard || p.hair, 0.5);
   return p;
 }
 function monoPal(col, ol) {
   const p = { T: {}, F: {} };
-  for (const key of ['skin', 'top', 'hair', 'acc', 'belt', 'eye', 'beard', 'skinD', 'hairD', 'hairL', 'accD', 'accL', 'beltL', 'white', 'mouth']) p[key] = col;
+  for (const key of ['skin', 'top', 'hair', 'acc', 'belt', 'eye', 'beard', 'tat', 'tatF', 'stub', 'cap', 'capL', 'skinD', 'hairD', 'hairL', 'accD', 'accL', 'beltL', 'white', 'mouth']) p[key] = col;
   for (const key of TONED) { p.T[key] = [col, col, col]; p.F[key] = [col, col, col]; }
   p.ol = ol; return p;
 }
@@ -621,18 +635,17 @@ function mkNic() {
   return finishChar({
     id: 'nic', name: 'NIC', title: 'LIVE WIRE', speed: 1.7, hp: 1000, jump: 7.9, dmg: 1, weapon: null, wRest: 90,
     stats: [3, 4, 3], quote: 'YOU NEVER SAW THE STORM COMING.',
-    pal: mkPal({ skin: '#f0c090', top: '#2440a8', sleeve: '#2440a8', fore: '#1a2c78', hand: '#ffe94a', pants: '#22263c', shin: '#22263c', shoe: '#ffe94a', hair: '#ffe066', acc: '#ffe94a', belt: '#ffe94a' }),
-    pal2: mkPal({ skin: '#f0c090', top: '#6a2aa8', sleeve: '#6a2aa8', fore: '#451a78', hand: '#6ee7ff', pants: '#2a2230', shin: '#2a2230', shoe: '#6ee7ff', hair: '#e8f4ff', acc: '#6ee7ff', belt: '#6ee7ff' }),
+    bulk: 2, gut: [8, 8, 2], arms: { cuff: 0, tat: [1, 1, 1, 1] },
+    pal: mkPal({ skin: '#e0aa80', top: '#2e2e36', sleeve: '#e0aa80', fore: '#e0aa80', hand: '#e0aa80', pants: '#3a5a94', shin: '#3a5a94', shoe: '#9a6a3a', hair: '#5a3a22', acc: '#ffe94a', belt: '#1a1a1e', beard: '#6a4226', cap: '#2a2a30', capL: '#8a5a34' }),
+    pal2: mkPal({ skin: '#e0aa80', top: '#7a2a2a', sleeve: '#e0aa80', fore: '#e0aa80', hand: '#e0aa80', pants: '#4a4a52', shin: '#4a4a52', shoe: '#3a2a1a', hair: '#5a3a22', acc: '#6ee7ff', belt: '#1a1a1e', beard: '#6a4226', cap: '#7a2a2a', capL: '#d8d8d8' }),
     head(px, pal) {
-      px(-8, -10, 15, 5, pal.ol); px(-8, -6, 4, 8, pal.ol);
-      px(-7, -9, 13, 4, pal.hair); px(-7, -6, 3, 7, pal.hair); px(4, -6, 3, 2, pal.hair);
-      px(-6, -13, 4, 4, pal.ol); px(-2, -15, 5, 6, pal.ol); px(3, -13, 4, 4, pal.ol); px(6, -11, 3, 4, pal.ol);
-      px(-5, -12, 2, 3, pal.hair); px(-1, -14, 3, 5, pal.hair); px(4, -12, 2, 3, pal.hair); px(6, -10, 2, 3, pal.hair);
-      px(-3, -9, 7, 1, pal.hairL); px(0, -13, 1, 3, pal.hairL); px(-7, -2, 2, 3, pal.hairD);
+      px(-8, -11, 16, 7, pal.ol); px(5, -7, 9, 4, pal.ol);
+      px(-7, -10, 14, 5, pal.cap); px(1, -10, 6, 5, pal.capL); px(5, -6, 8, 2, pal.cap); px(-6, -10, 6, 1, pal.capL);
+      px(-7, -5, 3, 5, pal.hair);
+      px(-5, 0, 5, 6, pal.beard); px(0, 2, 7, 6, pal.beard); px(-4, 6, 9, 2, pal.beard); px(3, 4, 3, 1, pal.ol); px(1, 2, 5, 1, pal.hairD);
     },
     deco(c, at, face, pal) {
-      let q = at(0.12, 3); R(c, q[0] - 2, q[1], 5, 3, pal.acc); q = at(0.26, 1); R(c, q[0] - 2, q[1], 4, 3, pal.acc); q = at(0.4, 4); R(c, q[0] - 2, q[1], 5, 3, pal.acc); q = at(0.55, 2); R(c, q[0] - 1, q[1], 3, 3, pal.acc);
-      q = at(0, 0); R(c, q[0] - 6, q[1] - 2, 12, 2, pal.accD);
+      const q = at(0, 1); R(c, q[0] - 5, q[1] - 3, 11, 6, pal.skin); R(c, q[0] - 3, q[1] + 3, 7, 2, pal.skin); R(c, q[0] - 5, q[1] + 2, 2, 2, pal.skinD);
     },
     poses: ps, normals: stdSet(A, 0, 1),
     ai: { zone: ['volt', 'bolt'], anti: 'upper', rush: 'volt', sup: 'storm', supD: [30, 320] },
@@ -698,20 +711,15 @@ function mkBrandon() {
   return finishChar({
     id: 'brandon', name: 'BRANDON', title: 'THIRTY ROUND MAG', speed: 1.35, hp: 1080, jump: 7.6, bulk: 1, dmg: 1.06, weapon: 'ak', wRest: 80, gun: 'gun',
     stats: [4, 2, 5], quote: 'THIRTY ROUNDS IN THE MAG. YOU LASTED THREE.',
-    pal: mkPal({ skin: '#d9a377', top: '#4a5a2c', sleeve: '#4a5a2c', fore: '#d9a377', hand: '#2b2b2b', pants: '#b79b6a', shin: '#b79b6a', shoe: '#3b2a1a', hair: '#39451f', acc: '#33401c', belt: '#2b2b2b', beard: '#4a2f1a' }),
-    pal2: mkPal({ skin: '#d9a377', top: '#3a3f4a', sleeve: '#3a3f4a', fore: '#d9a377', hand: '#1c1c1c', pants: '#2b2f38', shin: '#2b2f38', shoe: '#111111', hair: '#22252c', acc: '#22252c', belt: '#111', beard: '#2a2a2a' }),
+    arms: { cuff: 0.55, tat: [1, 0, 0, 0] },
+    pal: mkPal({ skin: '#dcaa80', top: '#30303a', sleeve: '#dcaa80', fore: '#dcaa80', hand: '#dcaa80', pants: '#40609a', shin: '#40609a', shoe: '#6a4a30', hair: '#3a2616', acc: '#33401c', belt: '#1a1a1e', beard: '#4a301c' }),
+    pal2: mkPal({ skin: '#dcaa80', top: '#4a5a2c', sleeve: '#dcaa80', fore: '#dcaa80', hand: '#dcaa80', pants: '#b79b6a', shin: '#b79b6a', shoe: '#3b2a1a', hair: '#3a2616', acc: '#33401c', belt: '#1a1a1e', beard: '#4a301c' }),
     head(px, pal) {
-      px(-8, -11, 16, 7, pal.ol); px(5, -6, 8, 4, pal.ol);
-      px(-7, -10, 14, 5, pal.hair); px(-7, -6, 3, 3, pal.hair); px(5, -5, 7, 2, pal.accD); px(-4, -10, 7, 1, pal.hairL); px(-7, -6, 14, 1, pal.hairD);
-      px(0, -4, 8, 4, pal.ol); px(1, -3, 6, 2, pal.eye); px(2, -3, 2, 1, pal.white);
+      px(-11, -10, 8, 21, pal.ol); px(-10, -9, 6, 19, pal.hair); px(-9, -4, 2, 5, pal.hairL); px(-10, 3, 2, 5, pal.hairD); px(-7, 6, 2, 3, pal.hairD);
+      px(-8, -11, 16, 6, pal.ol); px(-7, -10, 14, 5, pal.hair); px(-7, -6, 4, 9, pal.hair); px(-3, -10, 7, 1, pal.hairL); px(4, -6, 3, 2, pal.hair); px(-5, -2, 1, 5, pal.hairL);
       px(-5, 0, 5, 6, pal.beard); px(0, 2, 7, 6, pal.beard); px(-4, 6, 9, 2, pal.beard); px(3, 4, 3, 1, pal.ol); px(1, 2, 5, 1, pal.hairD);
     },
-    deco(c, at, face, pal) {
-      let q = at(0.2, 0); R(c, q[0] - 8, q[1], 16, 13, pal.accD); R(c, q[0] - 7, q[1] + 1, 14, 11, pal.acc);
-      q = at(0.62, 3); R(c, q[0] - 3, q[1] - 1, 6, 8, pal.ol); R(c, q[0] - 2, q[1], 4, 6, pal.accD); R(c, q[0] - 2, q[1], 4, 2, pal.accL);
-      q = at(0.62, -4); R(c, q[0] - 3, q[1] - 1, 6, 8, pal.ol); R(c, q[0] - 2, q[1], 4, 6, pal.accD); R(c, q[0] - 2, q[1], 4, 2, pal.accL);
-      q = at(0.3, 2); R(c, q[0] - 3, q[1], 6, 2, pal.accL);
-    },
+    deco(c, at, face, pal) { const q = at(0, 1); R(c, q[0] - 3, q[1] - 3, 7, 3, pal.skin); },
     poses: ps, normals: stdSet(A, 12, 0),
     ai: { zone: ['burst', 'burst'], anti: 'flak', rush: 'charge', sup: 'auto', supD: [60, 330] },
     specials: [
@@ -771,20 +779,15 @@ function mkEli() {
   return finishChar({
     id: 'eli', name: 'ELI', title: 'DOUBLE TAP', speed: 2.1, hp: 940, jump: 8.2, dmg: 1, weapon: null, wRest: 90,
     stats: [3, 5, 2], quote: 'ONCE IS NEVER ENOUGH.',
-    pal: mkPal({ skin: '#c98d62', top: '#a81c2c', sleeve: '#c98d62', fore: '#f1ead8', hand: '#f1ead8', pants: '#18181f', shin: '#18181f', shoe: '#c98d62', hair: '#141414', acc: '#e02a3a', belt: '#f1ead8' }),
-    pal2: mkPal({ skin: '#c98d62', top: '#1c5aa8', sleeve: '#c98d62', fore: '#f1ead8', hand: '#f1ead8', pants: '#e8e4d8', shin: '#e8e4d8', shoe: '#c98d62', hair: '#141414', acc: '#2a8ae0', belt: '#222' }),
-    head(px, pal, t) {
-      const fl = (t >> 3) & 1;
-      px(-8, -10, 15, 5, pal.ol); px(-8, -6, 4, 9, pal.ol);
-      px(-7, -9, 13, 3, pal.hair); px(-7, -6, 3, 8, pal.hair); px(-3, -9, 6, 1, pal.hairL);
-      px(-8, -7, 16, 4, pal.ol); px(-7, -6, 14, 2, pal.acc); px(-2, -6, 6, 1, pal.accL);
-      px(-11, -7, 4, 4, pal.ol); px(-10, -6, 3, 2, pal.accD);
-      px(-15, -7 + fl, 6, 4, pal.ol); px(-14, -6 + fl, 5, 2, pal.acc); px(-18, -4 - fl, 6, 4, pal.ol); px(-17, -3 - fl, 5, 2, pal.accD);
+    arms: { cuff: 0.55, tat: [0, 1, 0, 1] },
+    pal: mkPal({ skin: '#c8946a', top: '#26262e', sleeve: '#c8946a', fore: '#c8946a', hand: '#c8946a', pants: '#2c4270', shin: '#2c4270', shoe: '#1c1c22', hair: '#1a1614', acc: '#e02a3a', belt: '#141418', beard: '#2a2220' }),
+    pal2: mkPal({ skin: '#c8946a', top: '#e8e4d8', sleeve: '#c8946a', fore: '#c8946a', hand: '#c8946a', pants: '#26262e', shin: '#26262e', shoe: '#a81c2c', hair: '#1a1614', acc: '#2a8ae0', belt: '#141418', beard: '#2a2220' }),
+    head(px, pal) {
+      px(-8, -10, 15, 5, pal.ol); px(1, -13, 7, 4, pal.ol);
+      px(-7, -9, 13, 4, pal.hair); px(2, -12, 5, 3, pal.hair); px(-7, -6, 3, 4, pal.hair); px(-2, -9, 5, 1, pal.hairL); px(3, -12, 2, 1, pal.hairL);
+      px(-5, 2, 5, 5, pal.stub); px(0, 3, 7, 5, pal.stub); px(2, 5, 4, 3, pal.beard); px(3, 4, 3, 1, pal.ol);
     },
-    deco(c, at, face, pal) {
-      let q = at(0.1, 2); R(c, q[0] - 1, q[1], 2, 14, pal.accL); R(c, q[0] + 3, q[1], 2, 14, pal.accL);
-      q = at(0, 0); R(c, q[0] - 3, q[1] - 3, 7, 4, pal.skin);
-    },
+    deco(c, at, face, pal) { const q = at(0, 1); R(c, q[0] - 3, q[1] - 3, 7, 3, pal.skin); },
     poses: ps, normals: twinSet(A),
     ai: { zone: ['blitz', 'fang'], anti: 'rise', rush: 'fang', sup: 'double', supD: [20, 130] },
     specials: [
@@ -865,15 +868,16 @@ function mkCody() {
   const ch = finishChar({
     id: 'cody', name: 'CODY', title: 'SIDEARM', speed: 1.75, hp: 1000, jump: 7.9, dmg: 1, weapon: 'pistol', wRest: 84, gun: 'pistol',
     stats: [4, 3, 4], quote: "SAFETY'S OFF. SO ARE YOU.",
-    pal: mkPal({ skin: '#f2c9a0', top: '#f4f4f0', sleeve: '#f4f4f0', fore: '#f2c9a0', hand: '#f2c9a0', pants: '#3566b0', shin: '#3566b0', shoe: '#e8e8e8', hair: '#d8b25a', acc: '#1e6fd0', belt: '#5a3a1e' }),
-    pal2: mkPal({ skin: '#f2c9a0', top: '#26262c', sleeve: '#26262c', fore: '#f2c9a0', hand: '#f2c9a0', pants: '#6a6f7a', shin: '#6a6f7a', shoe: '#d02a2a', hair: '#d8b25a', acc: '#d02a2a', belt: '#111' }),
+    bulk: 1, arms: { cuff: 0.55, tat: [1, 0, 0, 0] },
+    pal: mkPal({ skin: '#e2b088', top: '#a8905a', sleeve: '#e2b088', fore: '#e2b088', hand: '#e2b088', pants: '#44649c', shin: '#44649c', shoe: '#b08a54', hair: '#4a3220', acc: '#1e6fd0', belt: '#3a2a1a', beard: '#5a3a22' }),
+    pal2: mkPal({ skin: '#e2b088', top: '#3a6a8a', sleeve: '#e2b088', fore: '#e2b088', hand: '#e2b088', pants: '#6a6f7a', shin: '#6a6f7a', shoe: '#2a2a30', hair: '#4a3220', acc: '#d02a2a', belt: '#111111', beard: '#5a3a22' }),
     head(px, pal) {
-      px(-8, -11, 15, 7, pal.ol); px(-14, -7, 8, 4, pal.ol);
-      px(-7, -10, 13, 5, pal.acc); px(-13, -6, 7, 2, pal.accD); px(-3, -10, 6, 1, pal.accL); px(-7, -6, 13, 1, pal.accD); px(2, -8, 3, 2, pal.white);
-      px(3, -5, 4, 2, pal.hair); px(-7, -5, 3, 5, pal.hair); px(-7, -1, 2, 2, pal.hairD);
+      px(-8, -10, 15, 5, pal.ol); px(0, -13, 8, 4, pal.ol);
+      px(-7, -9, 13, 4, pal.hair); px(1, -12, 6, 3, pal.hair); px(-7, -6, 3, 4, pal.hair); px(-2, -9, 5, 1, pal.hairL); px(2, -12, 3, 1, pal.hairL);
+      px(-5, 0, 5, 6, pal.beard); px(0, 2, 7, 6, pal.beard); px(-4, 6, 9, 2, pal.beard); px(3, 4, 3, 1, pal.ol); px(1, 2, 5, 1, pal.hairD);
     },
     deco(c, at, face, pal, p) {
-      let q = at(0, 0); R(c, q[0] - 4, q[1] - 2, 9, 3, pal.T.top[0]);
+      let q = at(0, 1); R(c, q[0] - 3, q[1] - 3, 7, 3, pal.skin);
       q = at(1, -6); R(c, q[0] - 3, q[1] + 1, 6, 10, pal.ol); R(c, q[0] - 2, q[1] + 2, 4, 8, pal.belt); if (p.now) { R(c, q[0] - 2, q[1] - 1, 4, 4, '#8a8a98'); R(c, q[0] - 2, q[1] - 1, 4, 1, '#d8d8e4'); }
     },
     poses: ps, normals: stdSet(A, 3, 0),
@@ -1759,7 +1763,7 @@ const SCENES = {
       }
       text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 214, '#fff', 1, 1, '#12061e');
       text(ctx, '9 KEY = PRACTICE MODE', 192, 186, '#6ae0ff', 1, 1, '#12061e');
-      text(ctx, 'BUILD 0.3', 192, 200, '#9a8fb8', 1, 1);
+      text(ctx, 'BUILD 0.4', 192, 200, '#9a8fb8', 1, 1);
     }
   },
   select: {
