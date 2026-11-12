@@ -249,7 +249,8 @@ function twinSet(A) {
 }
 function scaleHits(mv) { if (mv.hits) for (const h of mv.hits) h.box = h.box.map(v => Math.round(v * BOXK)); }
 function finishChar(ch) {
-  for (const sp of ch.specials) sp.moves = [0, 1, 2].map(s => Object.assign({ name: sp.name, cost: sp.cost, special: 1 }, sp.mk(s)));
+  for (const sp of ch.specials) sp.moves = [0, 1, 2].map(s => Object.assign({ name: sp.name, cost: sp.cost, special: 1, lvl: s }, sp.mk(s)));
+  for (const key in ch.normals) ch.normals[key].name = { s: 'STAND', c: 'CROUCH', j: 'JUMP' }[key[0]] + ' ' + key.slice(1);
   for (const sp of ch.specials) sp.moves.forEach(scaleHits);
   for (const key in ch.normals) scaleHits(ch.normals[key]);
   return ch;

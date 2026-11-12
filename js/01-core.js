@@ -72,13 +72,15 @@ const LAYOUTS = {
   ]
 };
 let layout = 'std';
-const keyState = [0, 0], virt = [0, 0], padState = [0, 0];
+const keyState = [0, 0], virt = [0, 0], padState = [0, 0], keyLatch = [0, 0];   // latch keeps a tap shorter than one frame from being lost
 let muted = false;
 window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.code === 'KeyM') { muted = !muted; if (typeof syncUi === 'function') syncUi(); return; }
+  const svc = { Digit9: 1, Digit8: 2, Digit7: 4 }[e.code];   // service keys: practice, stage, hit boxes
+  if (svc && !e.repeat && typeof G !== 'undefined') { G.svc |= svc; e.preventDefault(); audioInit(); return; }
   let hit = false;
-  for (let p = 0; p < 2; p++) { const b = LAYOUTS[layout][p][e.code]; if (b) { keyState[p] |= b; hit = true; } }
+  for (let p = 0; p < 2; p++) { const b = LAYOUTS[layout][p][e.code]; if (b) { keyState[p] |= b; keyLatch[p] |= b; hit = true; } }
   if (e.code === 'Enter') { keyState[0] |= B.ST; hit = true; }
   if (hit) { e.preventDefault(); audioInit(); }
 });
@@ -107,7 +109,7 @@ function pollPads() {
   }
 }
 function readInput(p) {
-  let s = keyState[p] | virt[p] | padState[p];
+  let s = keyState[p] | virt[p] | padState[p] | keyLatch[p];
   if ((s & 12) === 12) s &= ~12;          // left+right cancels
   if ((s & 3) === 3) s &= ~2;             // up+down gives up
   return s;

@@ -6,8 +6,10 @@ const G = {
   sel: [{ i: 0, ok: false }, { i: 3, ok: false }], stage: 0, ladder: null, lpos: 0, wait: 0, roll: 0,
   f: [], projs: [], parts: [], flashes: [], round: 1, phase: 'intro', pt: 0, timer: 99, hitstop: 0, freeze: 0, shake: 0,
   cam: CAM_MAX / 2, camT: CAM_MAX / 2, ft: 0, rt: 0, trap: null, combo: [null, null], winner: 0, rw: null,
-  superName: '', donutKO: false, timeUp: false, perfect: false
+  superName: '', donutKO: false, timeUp: false, perfect: false, svc: 0,
+  pr: { mode: 0, boxes: false, hist: [], last: '', dmg: 0, total: 0, done: {}, calm: 0, calmA: 0, lastInp: -1 }
 };
+const DUMMY = ['STANDS', 'CROUCHES', 'JUMPS', 'BLOCKS ALL', 'FIGHTS BACK'];
 let PORTRAITS = [], tmpC, tmpX;
 
 function mkPortrait(ch, pal, alt) {
@@ -48,7 +50,7 @@ function hasMotion(f, seq, win) {
   for (let i = h.length - 1; i >= 0; i--) {
     if (h[i].d === seq[k]) {
       const end = i + 1 < h.length ? h[i + 1].f : G.ft;
-      if (k === seq.length - 1 && G.ft - end > 9) return false;
+      if (k === seq.length - 1 && G.ft - end > 12) return false;
       firstEnd = end; if (--k < 0) return G.ft - firstEnd <= win;
     }
   }
@@ -66,10 +68,10 @@ function findSpecial(f, b) {
     if (sp.cost && f.meter < 100) continue;
     if (sp.ok && !sp.ok(f)) continue;
     let m = false;
-    if (sp.motion === 'sqcf') m = hasMotion(f, [2, 6, 2, 6], 44);
-    else if (sp.motion === 'dp') m = f.dir === 3 && hasMotion(f, [6, 2, 3], 26);
-    else if (sp.motion === 'qcf') m = hasMotion(f, [2, 3, 6], 22);
-    else if (sp.motion === 'qcb') m = hasMotion(f, [2, 1, 4], 22);
+    if (sp.motion === 'sqcf') m = hasMotion(f, [2, 6, 2, 6], 60);
+    else if (sp.motion === 'dp') m = f.dir === 3 && hasMotion(f, [6, 2, 3], 34);
+    else if (sp.motion === 'qcf') m = hasMotion(f, [2, 3, 6], 30);
+    else if (sp.motion === 'qcb') m = hasMotion(f, [2, 1, 4], 30);
     else if (sp.motion === 'chg') m = f.chargeReady > 0 && (f.dir === 6 || f.dir === 3 || f.dir === 9);
     if (m) { f.chargeReady = 0; f.hist.length = 0; return sp.moves[str]; }
   }
@@ -80,6 +82,7 @@ function startMove(f, mv) {
   if (!mv.air) f.crouch = !!mv.low;
   if (mv.cost) { f.meter = 0; G.freeze = 44; G.superName = mv.name; sfx('super'); }
   f.pose = mv.anim[0][0];
+  if (G.mode === 'practice' && f.idx === 0) { G.pr.last = mv.name + (mv.special && !mv.cost ? ' ' + ['LIGHT', 'MEDIUM', 'HEAVY'][mv.lvl] : ''); if (mv.special) G.pr.done[mv.name] = 1; }
 }
 function tryAttack(f, o, air) {
   if (G.ft - f.buf.f > 6 || !f.buf.b) return false;
@@ -188,7 +191,8 @@ function resolveHit(a, d, h, px, py, proj) {
   const dirn = proj && proj.vx ? sgn(proj.vx) : (d.x === a.x ? a.face : sgn(d.x - a.x)), sy = GROUND - py;
   let blocked = false;
   if ((d.state === 'idle' || d.state === 'block') && d.y <= 0 && G.phase === 'fight') {
-    if (d.cpu) {
+    if (G.mode === 'practice' && d.idx === 1 && G.pr.mode !== 4) { if (G.pr.mode === 3) { blocked = true; d.crouch = h.lv === 'low'; } }
+    else if (d.cpu) {
       if (Math.random() < (d.state === 'block' ? 0.92 : d.ai.blockP)) {
         const right = Math.random() < 0.8;
         if (h.lv === 'low') d.crouch = right; else if (h.lv === 'high') d.crouch = !right;
@@ -207,7 +211,9 @@ function resolveHit(a, d, h, px, py, proj) {
   const inCombo = d.state === 'hit' || d.state === 'airhit';
   d.combo = inCombo ? d.combo + 1 : 1;
   const dmg = h.d * a.ch.dmg * Math.max(0.4, 1 - (d.combo - 1) * 0.1);
-  d.hp -= dmg; a.meter = Math.min(100, a.meter + dmg * 0.11); d.meter = Math.min(100, d.meter + dmg * 0.07);
+  d.hp -= dmg;
+  if (G.mode === 'practice') { d.hp = Math.max(1, d.hp); if (d.idx === 1) { G.pr.dmg = Math.round(dmg); G.pr.total = (d.combo === 1 ? 0 : G.pr.total) + Math.round(dmg); } }
+  a.meter = Math.min(100, a.meter + dmg * 0.11); d.meter = Math.min(100, d.meter + dmg * 0.07);
   d.flash = 3; if (h.el) d.shock = 16; d.move = null;
   if (d.y > 0 || h.launch || d.hp <= 0 || d.state === 'airhit') {
     const L = h.launch || [1.8, 4.2];
@@ -283,7 +289,8 @@ function startTrap(a, d) {
 function finHit(a, d, base, last) {
   d.combo++;
   const dmg = base * Math.max(0.5, 1 - (d.combo - 1) * 0.06);
-  d.hp -= dmg; if (!last && d.hp < 1) d.hp = 1;
+  d.hp -= dmg; if ((!last || G.mode === 'practice') && d.hp < 1) d.hp = 1;
+  if (G.mode === 'practice') { G.pr.dmg = Math.round(dmg); G.pr.total += Math.round(dmg); }
   d.flash = 3; d.snap = 9; G.hitstop = last ? 14 : 6; G.shake = last ? 9 : 4;
   const px = d.x - a.face * 6, sy = GROUND - 80;
   G.flashes.push({ x: px, y: sy, t: 7, k: 1 }); burst(px, sy, last ? 14 : 6, ['#fff', '#ffc93a', '#ff7a3a'], 3, 0.1);
@@ -336,6 +343,77 @@ function aiThink(f, o) {
   return 0;
 }
 
+// ---------- practice mode: a dummy that never wins, with the inputs shown on screen ----------
+function dummyInput(f) {
+  const m = G.pr.mode;
+  if (m === 1) return B.D; if (m === 2) return f.state === 'idle' ? B.U : 0; if (m === 4) return aiThink(f, G.f[0]);
+  return 0;
+}
+function pracStart() {
+  G.mode = 'practice'; if (G.sel[1].i === G.sel[0].i && !G.pr.mirror) G.sel[1].i = (G.sel[0].i + 1) % 4;
+  startMatch(); G.phase = 'fight'; G.pt = 0; G.f[0].state = G.f[1].state = 'idle';
+  Object.assign(G.pr, { hist: [], last: '', dmg: 0, total: 0, done: {}, calm: 0, calmA: 0, lastInp: -1 });
+}
+function pracTick(inp, pr) {
+  const a = G.f[0], d = G.f[1], P = G.pr;
+  if (G.svc & 1) { goTitle(); return; }
+  if (G.svc & 2) { G.stage = (G.stage + 1) % 5; sfx('sel'); }
+  if (G.svc & 4) { P.boxes = !P.boxes; sfx('sel'); }
+  if (pr[0] & B.ST) { P.mode = (P.mode + 1) % DUMMY.length; sfx('sel'); }
+  if (pr[1] & B.ST) { const m = P.mode; pracStart(); P.mode = m; sfx('ok'); return; }
+  if (pr[0] & B.CO) { G.sel[0].i = (G.sel[0].i + 1) % 4; P.mirror = G.sel[1].i === G.sel[0].i; pracStart(); return; }
+  if (pr[1] & B.CO) { G.sel[1].i = (G.sel[1].i + 1) % 4; P.mirror = G.sel[1].i === G.sel[0].i; pracStart(); return; }
+  fightUpdate(inp);
+  G.timer = 99; G.phase = 'fight';
+  for (const f of G.f) if (f.meter < 100 && f.state === 'idle') f.meter = Math.min(100, f.meter + 3);
+  if (d.state === 'idle' || d.state === 'block') { if (++P.calm > 45) d.hp = d.hpShow = d.ch.hp; } else P.calm = 0;
+  if (a.state === 'idle' || a.state === 'block') { if (++P.calmA > 45) a.hp = a.hpShow = a.ch.hp; } else P.calmA = 0;
+  const now = inp[0] & 1023;
+  if (now !== P.lastInp) { P.lastInp = now; if (now) { P.hist.unshift({ s: now, n: 1 }); if (P.hist.length > 11) P.hist.pop(); } }
+  else if (now && P.hist.length) P.hist[0].n = Math.min(99, P.hist[0].n + 1);
+}
+function stickIcon(x, y, s, col) {
+  const dx = ((s & B.R) ? 1 : 0) - ((s & B.L) ? 1 : 0), dy = ((s & B.D) ? 1 : 0) - ((s & B.U) ? 1 : 0);
+  R(ctx, x, y, 11, 11, '#12081a'); R(ctx, x + 1, y + 1, 9, 9, '#2a1c4a');
+  if (!dx && !dy) { R(ctx, x + 4, y + 4, 3, 3, '#6a5f88'); return; }
+  stamp(ctx, x + 5 - dx * 3, y + 5 - dy * 3, x + 5 + dx * 3, y + 5 + dy * 3, 2, col); R(ctx, x + 4 + dx * 3, y + 4 + dy * 3, 4, 4, '#ffffff');
+}
+function boxOutline(x, y, w, h, col) { R(ctx, x, y, w, 1, col); R(ctx, x, y + h - 1, w, 1, col); R(ctx, x, y, 1, h, col); R(ctx, x + w - 1, y, 1, h, col); }
+function drawPracBoxes(cam) {
+  for (const f of G.f) {
+    const hb = hurt(f); if (hb) boxOutline(Math.round(hb[0] - cam), GROUND - Math.round(hb[1] + hb[3]), hb[2], hb[3], '#3aff6a');
+    if (f.state === 'atk' && f.move && f.move.hits) for (const h of f.move.hits) {
+      if (f.mf - 1 < h.f0 || f.mf - 1 > h.f1) continue;
+      const bx = f.face > 0 ? f.x + h.box[0] : f.x - h.box[0] - h.box[2];
+      ctx.globalAlpha = 0.35; R(ctx, bx - cam, GROUND - (f.y + h.box[1] + h.box[3]), h.box[2], h.box[3], '#ff2a2a'); ctx.globalAlpha = 1;
+      boxOutline(Math.round(bx - cam), GROUND - Math.round(f.y + h.box[1] + h.box[3]), h.box[2], h.box[3], '#ff2a2a');
+    }
+  }
+  for (const p of G.projs) if (p.type !== 'bolt' || p.active > 0) boxOutline(Math.round(p.x - p.w / 2 - cam), GROUND - Math.round(p.y + p.h / 2), p.w, p.h, '#ffe000');
+}
+function drawPractice() {
+  const P = G.pr, ol = '#12081a', ch = G.f[0].ch, BN = [['LP', B.LP, '#ff6a8a'], ['MP', B.MP, '#ff6a8a'], ['HP', B.HP, '#ff6a8a'], ['LK', B.LK, '#6ae0ff'], ['MK', B.MK, '#6ae0ff'], ['HK', B.HK, '#6ae0ff']];
+  R(ctx, 0, 0, W, 10, ol);
+  text(ctx, '1 DUMMY  2 RESET  5 FIGHTER  6 FOE  7 BOXES  8 STAGE  9 EXIT', 192, 2, '#ffe000', 1, 1);
+  text(ctx, 'DUMMY ' + DUMMY[P.mode], 154, 52, '#ffffff', 1, 1, ol);
+  if (P.last) text(ctx, P.last, 154, 64, '#7dff8a', 1, 1, ol);
+  if (P.dmg) text(ctx, 'HIT ' + P.dmg + '  COMBO ' + P.total, 154, 76, '#ffb020', 1, 1, ol);
+  // live stick and buttons, then the history underneath
+  ctx.globalAlpha = 0.72; R(ctx, 2, 44, 78, 150, ol); R(ctx, 228, 44, 154, 62, ol); ctx.globalAlpha = 1;
+  text(ctx, 'YOUR INPUT', 6, 47, '#9a8fb8', 1);
+  P.hist.forEach((e, i) => {
+    const y = 58 + i * 12, col = i ? '#b8b0d0' : '#ffe000'; stickIcon(5, y, e.s, col);
+    let x = 19; for (const b of BN) if (e.s & b[1]) { text(ctx, b[0], x, y + 2, i ? '#b8b0d0' : b[2], 1); x += 14; }
+    text(ctx, e.n, 77, y + 2, '#6a5f88', 1, 2);
+  });
+  text(ctx, ch.name + ' MOVES', 232, 47, '#9a8fb8', 1);
+  ch.specials.slice().reverse().forEach((sp, i) => {
+    const ok = P.done[sp.name], y = 58 + i * 12;
+    R(ctx, 232, y, 7, 7, ok ? '#3aff6a' : '#3a2a5a'); text(ctx, sp.name.length > 13 ? sp.name.slice(0, 13) : sp.name, 242, y, ok ? '#7dff8a' : '#ffffff', 1);
+    text(ctx, sp.cmd.replace('HOLD B, THEN ', 'B..'), 379, y, '#9a8fb8', 1, 2);
+  });
+}
+
 // ---------- match flow ----------
 function startMatch() {
   const s = G.sel;
@@ -350,10 +428,10 @@ function startRound() {
 function fightUpdate(inp) {
   const a = G.f[0], b = G.f[1];
   G.rt++; G.pt++;
-  for (const f of G.f) recInput(f, G.phase === 'fight' ? (f.cpu ? aiThink(f, G.f[1 - f.idx]) : inp[f.idx]) : 0);
+  for (const f of G.f) recInput(f, G.phase === 'fight' ? (f.cpu ? (G.mode === 'practice' ? dummyInput(f) : aiThink(f, G.f[1 - f.idx])) : inp[f.idx]) : 0);
   if (G.phase === 'intro') { if (G.pt === 60) sfx('ok'); if (G.pt >= 96) { G.phase = 'fight'; G.pt = 0; a.state = b.state = 'idle'; } }
   else if (G.phase === 'fight') {
-    if (!G.trap && G.freeze <= 0 && G.pt % 60 === 0) { G.timer--; if (G.timer <= 10 && G.timer > 0) sfx('tick'); if (G.timer <= 0) { G.timer = 0; G.timeUp = true; G.phase = 'ko'; G.pt = 0; sfx('ko'); } }
+    if (!G.trap && G.freeze <= 0 && G.pt % 60 === 0 && G.mode !== 'practice') { G.timer--; if (G.timer <= 10 && G.timer > 0) sfx('tick'); if (G.timer <= 0) { G.timer = 0; G.timeUp = true; G.phase = 'ko'; G.pt = 0; sfx('ko'); } }
   } else if (G.phase === 'ko') {
     if (G.pt === 75) {
       let w; if (G.timeUp) { const ra = a.hp / a.ch.hp, rb = b.hp / b.ch.hp; w = ra > rb ? 0 : rb > ra ? 1 : -1; } else w = a.hp > 0 && b.hp <= 0 ? 0 : b.hp > 0 && a.hp <= 0 ? 1 : -1;
@@ -448,7 +526,7 @@ function drawHud() {
     R(ctx, f.idx ? mx + 80 - mw : mx, 212, mw, 5, full ? ((G.rt & 4) ? '#ffffff' : '#ffe000') : '#2fd6e8');
     if (full) text(ctx, 'SUPER', f.idx ? 368 : 16, 200, (G.rt & 8) ? '#ffe000' : '#ffffff', 1, f.idx ? 2 : 0, ol);
     const c = G.combo[f.idx];
-    if (c) text(ctx, c.n + ' HITS', f.idx ? 368 : 16, 56, '#ffe000', 2, f.idx ? 2 : 0, '#c0104a');
+    if (c && G.mode !== 'practice') text(ctx, c.n + ' HITS', f.idx ? 368 : 16, 56, '#ffe000', 2, f.idx ? 2 : 0, '#c0104a');
   }
   R(ctx, 172, 9, 40, 20, ol); R(ctx, 173, 10, 38, 18, '#ffffff'); R(ctx, 175, 12, 34, 14, danger && (G.rt & 8) ? '#ffe000' : '#d01818');
   text(ctx, 'KO', 193, 13, ol, 2, 1); text(ctx, 'KO', 192, 12, '#ffffff', 2, 1);
@@ -474,7 +552,9 @@ function drawFight() {
   for (const p of G.parts) R(ctx, p.x - cam, p.y, p.sz, p.sz, p.col);
   for (const fl of G.flashes) drawFlash(fl, cam);
   ctx.restore();
+  if (G.mode === 'practice' && G.pr.boxes) drawPracBoxes(cam);
   drawHud();
+  if (G.mode === 'practice') drawPractice();
   if (G.freeze > 0) text(ctx, G.superName, 192, 60, (G.rt & 4) ? '#fff' : '#ffd92a', 2, 1, '#a01040');
   if (G.phase === 'intro') {
     if (G.pt < 60) bigText(G.f[0].wins === 1 && G.f[1].wins === 1 ? 'FINAL ROUND' : 'ROUND ' + G.round, 86, 3);
@@ -511,6 +591,7 @@ function startDemo() {
 const SCENES = {
   title: {
     upd(inp, pr) {
+      if (G.svc & 1) { pracStart(); return; }
       if (G.credits > 0) { if (pr[0] & B.ST) begin('cpu'); else if (pr[1] & B.ST) begin('pvp'); }
       else if (G.t > 540) startDemo();
     },
@@ -531,7 +612,8 @@ const SCENES = {
         text(ctx, 'COIN = 5 KEY    START = 1 KEY', 192, 164, '#fff', 1, 1, '#12061e');
       }
       text(ctx, 'CREDIT ' + String(G.credits).padStart(2, '0'), 192, 214, '#fff', 1, 1, '#12061e');
-      text(ctx, 'BUILD 0.2', 192, 200, '#9a8fb8', 1, 1);
+      text(ctx, '9 KEY = PRACTICE MODE', 192, 186, '#6ae0ff', 1, 1, '#12061e');
+      text(ctx, 'BUILD 0.3', 192, 200, '#9a8fb8', 1, 1);
     }
   },
   select: {
@@ -625,7 +707,8 @@ const SCENES = {
   },
   fight: {
     upd(inp, pr) {
-      if (G.mode === 'demo') { if (G.credits > 0) { goTitle(); return; } }
+      if (G.mode === 'practice') { pracTick(inp, pr); return; }
+      if (G.mode === 'demo') { if (G.credits > 0 || (G.svc & 1)) { goTitle(); if (G.svc & 1) pracStart(); return; } }
       else if (G.mode === 'cpu' && (pr[1] & B.ST) && G.credits > 0) { G.credits--; G.mode = 'pvp'; G.scene = 'challenger'; G.t = 0; sfx('super'); return; }
       fightUpdate(inp); if (G.scene === 'fight' && G.mode !== 'demo') musicTick(STAGES[G.stage].mus);
     },
@@ -698,9 +781,11 @@ const SCENES = {
 function step() {
   pollPads();
   const inp = [readInput(0), readInput(1)], pr = [inp[0] & ~G.prev[0], inp[1] & ~G.prev[1]];
+  keyLatch[0] = keyLatch[1] = 0;
   G.prev = inp; G.frame++; G.t++;
-  if ((pr[0] | pr[1]) & B.CO) { if (G.credits < 9) G.credits++; sfx('coin'); }
+  if (((pr[0] | pr[1]) & B.CO) && !(G.mode === 'practice' && G.scene === 'fight')) { if (G.credits < 9) G.credits++; sfx('coin'); }
   SCENES[G.scene].upd(inp, pr);
+  G.svc = 0;
 }
 function draw() { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; SCENES[G.scene].draw(); }
 let lastTs = 0, acc = 0;
@@ -744,6 +829,7 @@ function buildPanel() {
   const $ = id => document.getElementById(id);
   $('muteBtn').addEventListener('click', () => { audioInit(); muted = !muted; syncUi(); });
   $('keysBtn').addEventListener('click', () => { layout = layout === 'std' ? 'shared' : 'std'; keyState[0] = keyState[1] = 0; syncUi(); });
+  $('pracBtn').addEventListener('click', () => { audioInit(); G.svc |= 1; });
   $('fullBtn').addEventListener('click', () => { const el = $('crt'); try { if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen().catch(() => { }); } catch (x) { } });
   syncUi();
 }

@@ -1,6 +1,6 @@
 # Last Quarter
 
-A two-player, 90s-style arcade fighting game that runs in the browser. Build 0.2.
+A two-player, 90s-style arcade fighting game that runs in the browser. Build 0.3.
 
 Open `index.html` in a browser to play. No install, no build step.
 
@@ -8,6 +8,12 @@ Open `index.html` in a browser to play. No install, no build step.
 
 - **1P Start** – arcade ladder against the CPU (fight the other three, then your mirror).
 - **2P Start** – player versus player. Player 2 can also press start mid-fight to challenge.
+
+## Practice mode
+
+Press `9` on the title screen (no coin needed). The dummy cannot win, health and super refill, and the screen shows
+every stick direction and button the game receives plus a checklist of special moves. In practice: `1` dummy behaviour,
+`2` reset, `5` your fighter, `6` dummy fighter, `7` hit boxes, `8` stage, `9` exit. Remove or hide this for the cabinet launch.
 
 ## Controls
 
